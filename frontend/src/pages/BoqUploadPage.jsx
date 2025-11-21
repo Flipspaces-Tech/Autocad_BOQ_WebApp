@@ -16,6 +16,26 @@ export default function BoqUploadPage() {
   const [uploadId, setUploadId] = useState('');
   const inputRef = useRef(null);
 
+
+
+  async function handleUpload(file) {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const res = await fetch(`${BACKEND_URL}/upload`, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!res.ok) {
+    // this is where "Error: Not Found" was coming from
+    const errText = await res.text();
+    throw new Error(`Backend error ${res.status}: ${errText}`);
+  }
+
+  const data = await res.json();
+  console.log("BOQ result:", data);
+}
   const resetState = () => {
     setStatus('');
     setSheetUrl('');

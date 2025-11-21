@@ -17,7 +17,7 @@ UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # TODO: replace this with your real Apps Script Web App URL
-APP_SCRIPT_URL = "https://script.google.com/macros/s/YOUR_SCRIPT_ID_HERE/exec"
+APP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzdajkMohJJnWwbCKLQIp6imQe8VYCkkLQD4fB1sa0_2MfN7yhPONo8j3IacxIWna8u/exec"
 
 
 # ====== FASTAPI APP SETUP ======
