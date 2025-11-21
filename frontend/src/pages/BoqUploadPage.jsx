@@ -3,7 +3,7 @@ import React, { useState, useRef, useCallback } from 'react';
 import './BoqUploadPage.css'; // styles below
 // TEST
 // const API_URL = "http://127.0.0.1:8000/upload";
-import { BACKEND_URL } from "./config";
+import { BACKEND_URL } from "../config";
 
 
 export default function BoqUploadPage() {
