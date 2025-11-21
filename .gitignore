@@ -1,0 +1,75 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.log
+
+# Virtual env
+venv/
+env/
+.backend-venv/
+
+# DXF / export junk (only keep source scripts)
+Backend/VIZ_AUTOCAD_NEW/EXPORTS/
+Backend/VIZ_AUTOCAD_NEW/logs/
+Backend/uploads/
+
+# --- Node / React ---
+node_modules/
+frontend/node_modules/
+frontend/build/
+frontend/dist/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Ignore DXF input files & exports
+Backend/VIZ_AUTOCAD_NEW/DXF/
+Backend/VIZ_AUTOCAD_NEW/EXPORTS/
+Backend/uploads/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Node stuff
+frontend/node_modules/
+frontend/build/
+
+# venv
+venv/
+env/
+
+# Editor
+.vscode/
+
+
+# --- Python ---
+__pycache__/
+*.pyc
+*.pyo
+*.log
+
+# Virtual environments
+venv/
+env/
+.backend-venv/
+
+# --- DXF input + exports + uploads (DO NOT COMMIT) ---
+Backend/VIZ_AUTOCAD_NEW/DXF/
+Backend/VIZ_AUTOCAD_NEW/EXPORTS/
+Backend/uploads/
+
+# Node / React
+node_modules/
+frontend/node_modules/
+frontend/build/
+frontend/dist/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
