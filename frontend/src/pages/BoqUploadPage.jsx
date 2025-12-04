@@ -1,62 +1,46 @@
 // src/pages/BoqUploadPage.jsx
-import React, { useState, useRef, useCallback } from 'react';
-import './BoqUploadPage.css'; // styles below
-
-// const API_URL = "http://127.0.0.1:8000/upload";
+import React, { useState, useRef, useCallback } from "react";
+import "./BoqUploadPage.css";
 import { BACKEND_URL } from "../config";
-
 
 export default function BoqUploadPage() {
   const [file, setFile] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [status, setStatus] = useState('');
-  const [sheetUrl, setSheetUrl] = useState('');
-  const [sheetName, setSheetName] = useState('');
-  const [uploadId, setUploadId] = useState('');
+  const [status, setStatus] = useState("");
+  const [sheetUrl, setSheetUrl] = useState("");
+  const [sheetName, setSheetName] = useState("");
+  const [uploadId, setUploadId] = useState("");
   const inputRef = useRef(null);
 
-
-
-  async function handleUpload(file) {
-  const formData = new FormData();
-  formData.append("file", file);
-
-  const res = await fetch(`${BACKEND_URL}/upload`, {
-    method: "POST",
-    body: formData,
-  });
-
-  if (!res.ok) {
-    // this is where "Error: Not Found" was coming from
-    const errText = await res.text();
-    throw new Error(`Backend error ${res.status}: ${errText}`);
-  }
-
-  const data = await res.json();
-  console.log("BOQ result:", data);
-}
+  /** Reset BOQ result state */
   const resetState = () => {
-    setStatus('');
-    setSheetUrl('');
-    setSheetName('');
-    setUploadId('');
+    setStatus("");
+    setSheetUrl("");
+    setSheetName("");
+    setUploadId("");
   };
 
+  /** Validate and store selected file */
   const handleFileSelect = (f) => {
     if (!f) return;
-    if (!f.name.toLowerCase().match(/\.(dwg|dxf)$/)) {
-      setStatus('❌ Please upload a DWG or DXF file.');
+
+    // DXF only, because backend is DXF-only
+    if (!f.name.toLowerCase().endsWith(".dxf")) {
+      setStatus("❌ Please upload an ASCII DXF file (.dxf).");
       return;
     }
+
     setFile(f);
     resetState();
   };
 
+  /** Drag & drop handlers */
   const onDrop = useCallback((e) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
+
     const droppedFiles = e.dataTransfer.files;
     if (droppedFiles && droppedFiles[0]) {
       handleFileSelect(droppedFiles[0]);
@@ -79,49 +63,50 @@ export default function BoqUploadPage() {
     inputRef.current?.click();
   };
 
+  /** Submit handler → calls FastAPI /upload */
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     if (!file) {
-      setStatus('Please choose a DWG/DXF file first.');
+      setStatus("Please choose a DXF file first.");
       return;
     }
 
     setIsUploading(true);
-    setStatus('Uploading and generating BOQ…');
-    setSheetUrl('');
-    setSheetName('');
-    setUploadId('');
+    setStatus("Uploading and generating BOQ…");
+    setSheetUrl("");
+    setSheetName("");
+    setUploadId("");
 
     try {
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append("file", file); // must be "file" to match FastAPI
 
-      
+      const url = `${BACKEND_URL}/upload`;
+      console.log("Calling backend:", url);
 
-const res = await fetch(`${BACKEND_URL}/process`, {
-  method: "POST",
-  body: formData,
-});
+      const res = await fetch(url, {
+        method: "POST",
+        body: formData,
+      });
 
-
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      console.log("BOQ result:", res.status, data);
 
       if (!res.ok || !data.ok) {
-        setStatus(
-          '❌ Error: ' +
-            (data.detail || data.error || data.message || 'Unknown error')
-        );
-        setIsUploading(false);
+        const msg =
+          data.detail || data.error || data.message || "Unknown backend error.";
+        setStatus("❌ Error: " + msg);
         return;
       }
 
-      setSheetUrl(data.sheetUrl);
-      setSheetName(data.sheetName);
-      setUploadId(data.uploadId);
-      setStatus('✅ BOQ generated successfully.');
+      setSheetUrl(data.sheetUrl || "");
+      setSheetName(data.sheetName || "");
+      setUploadId(data.uploadId || "");
+      setStatus(data.message || "✅ BOQ generated successfully.");
     } catch (err) {
       console.error(err);
-      setStatus('❌ Network error: ' + err.message);
+      setStatus("❌ Network error: " + err.message);
     } finally {
       setIsUploading(false);
     }
@@ -130,18 +115,22 @@ const res = await fetch(`${BACKEND_URL}/process`, {
   return (
     <div className="boq-page">
       <div className="boq-card">
+        {/* Header */}
         <div className="boq-header">
           <div className="boq-pill">Vizdom · AutoCAD BOQ</div>
           <h1>BOQ Generator</h1>
           <p>
-            Upload a <strong>DWG</strong> or <strong>DXF</strong> file and get
-            an auto-generated BOQ in Google Sheets.
+            Upload an <strong>ASCII DXF</strong> file and get an auto-generated
+            BOQ in Google Sheets.
           </p>
         </div>
 
+        {/* Upload form */}
         <form className="boq-form" onSubmit={handleSubmit}>
           <div
-            className={`boq-dropzone ${isDragging ? 'boq-dropzone--drag' : ''}`}
+            className={`boq-dropzone ${
+              isDragging ? "boq-dropzone--drag" : ""
+            }`}
             onDrop={onDrop}
             onDragOver={onDragOver}
             onDragLeave={onDragLeave}
@@ -150,8 +139,8 @@ const res = await fetch(`${BACKEND_URL}/process`, {
             <input
               type="file"
               ref={inputRef}
-              style={{ display: 'none' }}
-              accept=".dwg,.dxf"
+              style={{ display: "none" }}
+              accept=".dxf"
               onChange={(e) => handleFileSelect(e.target.files[0])}
             />
 
@@ -161,7 +150,7 @@ const res = await fetch(`${BACKEND_URL}/process`, {
               <>
                 <div className="boq-file-name">{file.name}</div>
                 <div className="boq-file-meta">
-                  {(file.size / (1024 * 1024)).toFixed(2)} MB · DWG/DXF
+                  {(file.size / (1024 * 1024)).toFixed(2)} MB · DXF
                 </div>
                 <button
                   type="button"
@@ -178,7 +167,7 @@ const res = await fetch(`${BACKEND_URL}/process`, {
                   Drag &amp; drop your drawing here
                 </p>
                 <p className="boq-dropzone-sub">
-                  or{' '}
+                  or{" "}
                   <button
                     type="button"
                     className="boq-link-btn"
@@ -188,11 +177,12 @@ const res = await fetch(`${BACKEND_URL}/process`, {
                     browse from your computer
                   </button>
                 </p>
-                <p className="boq-dropzone-hint">Supported: .dwg, .dxf</p>
+                <p className="boq-dropzone-hint">Supported: ASCII .dxf</p>
               </>
             )}
           </div>
 
+          {/* Actions */}
           <div className="boq-actions">
             <button
               type="submit"
@@ -207,7 +197,7 @@ const res = await fetch(`${BACKEND_URL}/process`, {
                   Processing…
                 </span>
               ) : (
-                'Generate BOQ'
+                "Generate BOQ"
               )}
             </button>
 
@@ -224,6 +214,7 @@ const res = await fetch(`${BACKEND_URL}/process`, {
           </div>
         </form>
 
+        {/* Footer / Status */}
         <div className="boq-footer">
           <div className="boq-status">
             {status && <span>{status}</span>}

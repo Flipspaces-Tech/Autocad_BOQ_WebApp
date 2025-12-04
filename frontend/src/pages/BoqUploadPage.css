@@ -1,10 +1,11 @@
 /* src/pages/BoqUploadPage.css */
 
 :root {
-  --boq-bg: #050816;
-  --boq-card-bg: rgba(15, 23, 42, 0.9);
-  --boq-border: rgba(148, 163, 184, 0.3);
-  --boq-accent: #38bdf8;
+  --boq-bg: #f7f7fe;
+  /* --boq-card-bg: rgba(15, 23, 42, 0.9); */
+  --boq-card-bg: #f7f7fe;
+  --boq-border: #94a3b84d;
+  /* --boq-accent: #38bdf8; */
   --boq-accent-soft: rgba(56, 189, 248, 0.22);
   --boq-text: #e5e7eb;
   --boq-muted: #94a3b8;
@@ -23,13 +24,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(
+  /* background: radial-gradient(
     circle at top left,
     #1e293b 0,
     #020617 45%,
     #000 100%
-  );
-  color: var(--boq-text);
+  ); */
+  color: "f7f7fe";
   font-family: var(--boq-font-sans);
 }
 
@@ -37,12 +38,13 @@
   width: 100%;
   max-width: 720px;
   padding: 28px 28px 24px;
-  background: linear-gradient(
+  color: "ffffff";
+  /* background: linear-gradient(
       135deg,
       rgba(56, 189, 248, 0.08),
       rgba(15, 23, 42, 0.96)
     ),
-    var(--boq-card-bg);
+    var(--boq-card-bg); */
   border-radius: var(--boq-radius-lg);
   border: 1px solid var(--boq-border);
   box-shadow: var(--boq-shadow-soft);

@@ -1,160 +1,110 @@
-# app.py  (Backend)
+# backend/app.py
 
-import os
-import shutil
-from typing import List, Any, Dict
+import io
+from typing import Any, Dict
 
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-import requests
 
-# ====== CONFIG ======
-
-# Folder where uploaded DWG/DXF files will be stored temporarily
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-
-# TODO: replace this with your real Apps Script Web App URL
-APP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzdajkMohJJnWwbCKLQIp6imQe8VYCkkLQD4fB1sa0_2MfN7yhPONo8j3IacxIWna8u/exec"
-
-
-# ====== FASTAPI APP SETUP ======
+# 👇 import your DXF → Sheets pipeline function from tr_2.py
+from tr_2 import process_doc_from_stream
 
 app = FastAPI(title="AutoCAD BOQ Web API")
 
-# Allow frontend (React) to call this API
+# CORS: allow your React dev server / Vercel to call this API
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # in production, restrict to your domain
+    allow_origins=["*"],  # you can restrict later
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
-# ====== HELPER: YOUR BOQ PIPELINE WRAPPER ======
+async def _run_pipeline_from_upload(file: UploadFile) -> Dict[str, Any]:
+  """
+  Reads the uploaded DXF and calls process_doc_from_stream()
+  from tr_2.py, which writes to Google Sheets and returns a summary.
+  """
 
-def run_boq_pipeline(file_path: str) -> (List[List[Any]], Dict[str, Any]):
-    """
-    This is the wrapper around your existing DXF/DWG → BOQ logic.
+  filename = file.filename or "drawing"
+  if not filename.lower().endswith(".dxf"):
+      # Your pipeline is DXF-only, so be explicit
+      raise HTTPException(
+          status_code=400,
+          detail="Only ASCII DXF files are supported by this pipeline."
+      )
 
-    For now it's a dummy implementation so the flow works end-to-end.
-    Later, replace the dummy code with imports from VIZ_AUTOCAD_NEW and
-    call your real functions there.
+  # Read file bytes
+  contents = await file.read()
+  if not contents:
+      raise HTTPException(status_code=400, detail="Empty file upload")
 
-    Must return:
-      rows: list of lists for Google Sheets
-      meta: dict with metadata (projectName, etc.)
-    """
+  # Quick binary DXF sniff (your tr_2.py probably does more)
+  head = contents[:64]
+  if b"AutoCAD Binary DXF" in head:
+      raise HTTPException(
+          status_code=415,
+          detail="Binary DXF not supported. Please export ASCII DXF."
+      )
 
-    # ---- TODO: REPLACE THIS WITH YOUR REAL LOGIC ----
-    header = ["Category", "Item", "Description", "Qty", "Unit", "Remarks"]
-    rows = [header]
+  # Decode text
+  try:
+      text = contents.decode("utf-8")
+  except UnicodeDecodeError:
+      try:
+          text = contents.decode("latin-1")
+      except Exception:
+          raise HTTPException(
+              status_code=400,
+              detail="Unable to decode DXF text (utf-8/latin-1)."
+          )
 
-    # Example dummy BOQ row
-    rows.append([
-        "Seating",
-        "Workstation Chair",
-        "Standard task chair",
-        42,
-        "Nos",
-        f"Dummy data for file {os.path.basename(file_path)}",
-    ])
+  # Call your big processing function from tr_2.py
+  try:
+      summary = process_doc_from_stream(io.StringIO(text))
+  except ValueError as ve:
+      # e.g. invalid DXF
+      raise HTTPException(status_code=415, detail=str(ve))
+  except Exception as ex:
+      raise HTTPException(status_code=500, detail=f"Server error: {ex}")
 
-    meta = {
-        "projectName": "Demo Project",
-        "drawingFile": os.path.basename(file_path),
-        "carpetAreaSft": 9500,
-        "floor": "4F",
-        "runTimestamp": "2025-11-21T13:45:00+05:30",
-        "uploadId": os.path.splitext(os.path.basename(file_path))[0],
-    }
-    # ---- END DUMMY ----
+  # Summary is whatever tr_2 returns; we shape it for frontend
+  gsheet_id = summary.get("gsheet_id")
+  sheet_tab = summary.get("sheet_tab")
 
-    return rows, meta
+  # Build a Google Sheets URL if we have the ID
+  sheet_url = (
+      f"https://docs.google.com/spreadsheets/d/{gsheet_id}"
+      if gsheet_id else None
+  )
 
-
-# ====== HELPER: SEND TO APPS SCRIPT ======
-
-def send_boq_to_apps_script(rows: List[List[Any]], meta: Dict[str, Any]) -> Dict[str, Any]:
-    if not APP_SCRIPT_URL or "YOUR_SCRIPT_ID_HERE" in APP_SCRIPT_URL:
-        raise RuntimeError("APP_SCRIPT_URL is not configured. Edit app.py and set it correctly.")
-
-    payload = {
-        "action": "writeBoq",
-        "uploadId": meta.get("uploadId"),
-        "rows": rows,
-        "meta": meta,
-    }
-
-    try:
-        res = requests.post(APP_SCRIPT_URL, json=payload, timeout=60)
-    except Exception as e:
-        raise RuntimeError(f"Failed to reach Apps Script: {e}")
-
-    if not res.ok:
-        raise RuntimeError(f"Apps Script HTTP error {res.status_code}: {res.text}")
-
-    try:
-        data = res.json()
-    except Exception:
-        raise RuntimeError(f"Apps Script returned non-JSON response: {res.text}")
-
-    if not data.get("ok"):
-        raise RuntimeError(f"Apps Script error: {data}")
-
-    return data
+  return {
+      "ok": True,
+      "message": "BOQ generated and pushed to Google Sheets.",
+      "sheetUrl": sheet_url,             # 👈 React uses this
+      "sheetName": sheet_tab,            # 👈 React shows this as tag
+      "uploadId": summary.get("upload_id") or gsheet_id,
+      "rawSummary": summary,             # Optional extra info
+  }
 
 
-# ====== API ENDPOINT ======
-
+# === Main endpoint your React app calls ===
 @app.post("/upload")
 async def upload_drawing(file: UploadFile = File(...)):
-    # Basic extension check
-    filename = file.filename or "drawing"
-    if not filename.lower().endswith((".dwg", ".dxf")):
-        raise HTTPException(status_code=400, detail="Only DWG/DXF files are supported")
-
-    # Save file to temporary folder
-    save_path = os.path.join(UPLOAD_DIR, filename)
-    try:
-        with open(save_path, "wb") as f:
-            shutil.copyfileobj(file.file, f)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to save upload: {e}")
-
-    try:
-        # 1) Run your BOQ pipeline on this file
-        rows, meta = run_boq_pipeline(save_path)
-
-        # 2) Send the result to Apps Script → Google Sheets
-        result = send_boq_to_apps_script(rows, meta)
-
-        # 3) Return a clean response for the React frontend
-        return JSONResponse({
-            "ok": True,
-            "message": "BOQ generated successfully",
-            "sheetUrl": result.get("sheetUrl"),
-            "sheetName": result.get("sheetName"),
-            "uploadId": result.get("uploadId"),
-        })
-
-    except Exception as e:
-        # Surface any pipeline or Apps Script errors
-        raise HTTPException(status_code=500, detail=f"Processing failed: {e}")
-    finally:
-        # Optional cleanup
-        try:
-            if os.path.exists(save_path):
-                os.remove(save_path)
-        except Exception:
-            pass
+  data = await _run_pipeline_from_upload(file)
+  return JSONResponse(data)
 
 
-# ====== SIMPLE HEALTH CHECK ======
+# Backwards-compatible alias if needed
+@app.post("/process")
+async def process_drawing(file: UploadFile = File(...)):
+  data = await _run_pipeline_from_upload(file)
+  return JSONResponse(data)
 
+
+# Simple health check
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+  return {"status": "ok"}
