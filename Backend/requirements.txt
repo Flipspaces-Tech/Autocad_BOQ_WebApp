@@ -5,3 +5,4 @@ requests
 ezdxf
 pandas
 numpy
+matplotlib==3.5.3
