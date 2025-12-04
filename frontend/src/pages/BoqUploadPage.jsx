@@ -1,7 +1,7 @@
 // src/pages/BoqUploadPage.jsx
 import React, { useState, useRef, useCallback } from "react";
 import "./BoqUploadPage.css";
-import { BACKEND_URL } from "./config";
+import { BACKEND_URL } from "../config";
 
 export default function BoqUploadPage() {
   const [file, setFile] = useState(null);
