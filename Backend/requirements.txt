@@ -4,5 +4,6 @@ python-multipart
 requests
 ezdxf
 pandas
-numpy
-matplotlib==3.5.3
+numpy==1.26.4
+matplotlib==3.8.4
+
