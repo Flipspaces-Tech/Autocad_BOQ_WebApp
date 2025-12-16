@@ -27,11 +27,9 @@ import requests
 import ezdxf
 from ezdxf import colors as ezcolors
 
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-import tempfile, ezdxf
+import tempfile
 from ezdxf import recover
+
 
 
 import os, json
@@ -48,7 +46,7 @@ OUT_ROOT   = r"C:\Users\admin\Documents\VIZ_AUTOCAD_NEW\EXPORTS"
 
 GS_WEBAPP_URL       = "https://script.google.com/macros/s/AKfycbzshBQ-kXBqyAseauRR8IMix2RcUxB0D1ZQZ854JLkH6tPzRuTgrjrqaNFAO8bs84Mf0A/exec"
 GSHEET_ID           = "12AsC0b7_U4dxhfxEZwtrwOXXALAnEEkQm5N8tg_RByM"
-GSHEET_TAB          = "UNIQUE" 
+GSHEET_TAB          = "UNIQdasdsdsaUE" 
 GSHEET_SUMMARY_TAB  = ""       # blank → auto "<GSHEET_TAB>_ByLayer"
 GSHEET_MODE         = "replace"
 GS_DRIVE_FOLDER_ID  = ""
@@ -457,102 +455,20 @@ def make_row(entity_type, qty_type, qty_value,
     }
 
 # ===== Previews (Detail) =====
-def _render_preview_from_insert(ins, size_px:int=192, pad_ratio:float=0.06) -> str:
-    try:
-        polylines: list[list[tuple[float,float]]] = []
-        minx=miny=float("inf"); maxx=maxy=float("-inf")
-        for ve in ins.virtual_entities():
-            et = ve.dxftype()
-            pts = []
-            if et == "LINE":
-                pts = [(float(ve.dxf.start.x), float(ve.dxf.start.y)),
-                       (float(ve.dxf.end.x),   float(ve.dxf.end.y))]
-            elif et == "LWPOLYLINE":
-                verts = list(ve); n = len(verts)
-                if n:
-                    closed = bool(getattr(ve, "closed", False))
-                    for i in range(n if closed else n-1):
-                        j = (i + 1) % n
-                        try: b = float(verts[i][4])
-                        except Exception: b = 0.0
-                        seg = _bulge_arc_points((float(verts[i][0]), float(verts[i][1])),
-                                                (float(verts[j][0]), float(verts[j][1])), b)
-                        pts.extend(seg if not pts or pts[-1] != seg[0] else seg[1:])
-                    if closed and pts and pts[0] != pts[-1]:
-                        pts.append(pts[0])
-            elif et == "POLYLINE":
-                vs = list(ve.vertices())
-                if vs:
-                    tmp, coords = [], []
-                    for v in vs:
-                        loc=getattr(v.dxf,"location",None)
-                        coords.append((float(loc.x),float(loc.y)) if loc is not None
-                                      else (float(getattr(v.dxf,"x",0.0)), float(getattr(v.dxf,"y",0.0))))
-                    closed = bool(getattr(ve,"is_closed",getattr(ve,"closed",False)))
-                    n = len(coords)
-                    for i in range(n - (0 if closed else 1)):
-                        j = (i + 1) % n
-                        try: b = float(vs[i].dxf.bulge)
-                        except Exception: b = 0.0
-                        seg = _bulge_arc_points(coords[i], coords[j], b)
-                        tmp.extend(seg if not tmp or tmp[-1] != seg[0] else seg[1:])
-                    if closed and tmp and tmp[0] != tmp[-1]:
-                        tmp.append(tmp[0])
-                    pts = tmp
-            elif et == "CIRCLE":
-                cx, cy = float(ve.dxf.center.x), float(ve.dxf.center.y); r = float(ve.dxf.radius)
-                if r > 0:
-                    pts = list(_sample_arc_pts(cx, cy, r, None, None))
-                    if pts and pts[0] != pts[-1]:
-                        pts.append(pts[0])
-            elif et == "ARC":
-                cx, cy = float(ve.dxf.center.x), float(ve.dxf.center.y); r = float(ve.dxf.radius)
-                sa, ea = float(ve.dxf.start_angle), float(ve.dxf.end_angle)
-                if r > 0:
-                    pts = list(_sample_arc_pts(cx, cy, r, sa, ea))
-
-            if len(pts) >= 2 and any((pts[i] != pts[i+1]) for i in range(len(pts)-1)):
-                polylines.append(pts)
-                for (x,y) in pts:
-                    minx = min(minx, x); miny = min(miny, y)
-                    maxx = max(maxx, x); maxy = max(maxy, y)
-
-        if minx == float("inf") or not polylines:
-            return ""
-
-        w = max(maxx - minx, 1.0); h = max(maxy - miny, 1.0)
-        size = max(w, h); pad = max(size * pad_ratio, 0.5)
-        cx = (minx + maxx) * 0.5; cy = (miny + maxy) * 0.5
-        half = size * 0.5 + pad
-        xmin, xmax = cx - half, cx + half
-        ymin, ymax = cy - half, cy + half
-
-        fig = plt.figure(figsize=(size_px/100, size_px/100), dpi=100)
-        ax = fig.add_subplot(111)
-        ax.axis("off"); ax.set_aspect("equal")
-        for pts in polylines:
-            xs = [p[0] for p in pts]; ys = [p[1] for p in pts]
-            ax.plot(xs, ys, linewidth=1.25)
-        ax.set_xlim([xmin, xmax]); ax.set_ylim([ymin, ymax])
-
-        buf = io.BytesIO()
-        plt.subplots_adjust(0,0,1,1)
-        fig.savefig(buf, format="png", transparent=True, bbox_inches="tight", pad_inches=0)
-        plt.close(fig)
-        return base64.b64encode(buf.getvalue()).decode("ascii")
-    except Exception:
-        return ""
+# ===== Previews (Detail) =====
+def _render_preview_from_insert(ins, size_px: int = 192, pad_ratio: float = 0.06) -> str:
+    """
+    Preview generation is currently disabled (matplotlib removed for server deploy).
+    This stub always returns an empty string so the rest of the pipeline still works.
+    """
+    return ""
 
 def _build_preview_cache(msp) -> Dict[str, str]:
-    cache: Dict[str, str] = {}
-    for ins in msp.query("INSERT"):
-        try:
-            name = getattr(ins, "effective_name", None) or getattr(ins, "block_name", None) or getattr(ins.dxf, "name", "")
-            if not name or name in cache: continue
-            cache[name] = _render_preview_from_insert(ins) or ""
-        except Exception:
-            pass
-    return cache
+    """
+    With previews disabled, we just return an empty cache.
+    All preview_b64 values will be blank, which is fine for the Sheets uploader.
+    """
+    return {}
 
 def _layer_rgb_map(doc) -> Dict[str, tuple[int,int,int]]:
     m: Dict[str, tuple[int,int,int]] = {}
