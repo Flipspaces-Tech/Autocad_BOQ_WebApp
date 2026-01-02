@@ -1,18 +1,24 @@
+####2####
+
+
 #!/usr/bin/env python3
 # DXF → CSV + Google Sheets (Apps Script Web App)
-# - Aggregates INSERTs by (block_name, category(layer), zone) using median bbox (L/W)
-# - Sends category1 = original DWG layer (lowercased) to Detail
-# - Zone detection from PLANNER (INSERT bbox or closed LWPOLYLINE + nearest/inside label)
-# - Layer totals with dominant color vote → ByLayer tab (color swatches)
-# - Detail tab: Apps Script now reorders columns to: category1, BOQ name, zone, ...
-#              and aggregates zones under same (category1 + BOQ name) into one row.
-#
-# IMPORTANT:
-# - Keep "headers" names stable: category1, BOQ name, zone, qty_type, qty_value, length (ft), width (ft), Description, Preview, remarks
-# - Apps Script handles the final shaping/merging.
+# - Aggregates INSERTs by (block_name, PLANNER, zone) using median bbox (L/W)
+# - Adds category1 = original DWG layer (kept in CSV & Detail; NOT sent to ByLayer)
+# - Zone detection from PLANNER (INSERT or closed LWPOLYLINE + best label)
+# - Layer totals with dominant color vote → ByLayer tab
+# - Detail sheet removes perimeter & area
+# - ByLayer sheet removes zone, category1, BOQ name, qty_value
+# - Upgrades:
+#     * Oriented (angle-aware) bbox for INSERT length/width
+#     * Safe handling of $INSUNITS=0 via --unitless-units
+#     * Description column:
+#         - Prefer ATTRIB tags: DESC / DESCRIPTION / NOTE / REM / REMARK / INFO
+#         - Fallback to BlockRecord.dxf.description
+#         - Last resort to ATTDEF default text in the block definition
 
 from __future__ import annotations
-import argparse, csv, io, base64, time, math, logging, os, tempfile
+import argparse, csv, uuid, time, math, logging, io, base64
 from pathlib import Path
 from typing import List, Tuple, Optional, Dict
 from dataclasses import dataclass
@@ -20,14 +26,25 @@ from dataclasses import dataclass
 import requests
 import ezdxf
 from ezdxf import colors as ezcolors
-from ezdxf import recover
 
+import os
 os.environ.setdefault("MPLCONFIGDIR", "/tmp/matplotlib")
 os.makedirs(os.environ["MPLCONFIGDIR"], exist_ok=True)
 
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import tempfile, ezdxf
+from ezdxf import recover
+
+
+import os, json
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+import uvicorn
+
 
 # ===== Defaults you can edit =====
 DXF_FOLDER = r"C:\Users\admin\Documents\AUTOCAD_WEBAPP\DXF"
@@ -35,29 +52,29 @@ OUT_ROOT   = r"C:\Users\admin\Documents\AUTOCAD_WEBAPP\EXPORTS"
 
 GS_WEBAPP_URL       = "https://script.google.com/macros/s/AKfycbwTTg9SzLo70ICTbpr2a5zNw84CG6kylNulVONenq4BADQIuCq7GuJqtDq7H_QfV0pe/exec"
 GSHEET_ID           = "12AsC0b7_U4dxhfxEZwtrwOXXALAnEEkQm5N8tg_RByM"
-GSHEET_TAB          = "UNIQUEness"            # Detail tab
-GSHEET_SUMMARY_TAB  = ""                     # blank → auto "<GSHEET_TAB>_ByLayer"
+GSHEET_TAB          = "UNIQUEness" 
+GSHEET_SUMMARY_TAB  = ""       # blank → auto "<GSHEET_TAB>_ByLayer"
 GSHEET_MODE         = "replace"
 GS_DRIVE_FOLDER_ID  = ""
 
 # Which attribute tags we consider as "description"
 DESC_TAGS = {"DESC", "DESCRIPTION", "NOTE", "REM", "REMARK", "INFO", "META_DESC"}
 
-# ===== Headers =====
+
+# ========== Headers ==========
 CSV_HEADERS = [
     "entity_type","category","zone","category1",
     "BOQ name","qty_type","qty_value",
     "length (ft)","width (ft)","perimeter","area (ft2)",
-    "Description",
+    "Description",               # <— NEW column wired through CSV + Sheet
     "Preview","remarks"
 ]
 
 DETAIL_HEADERS = [
-    # NOTE: Apps Script will drop entity_type/category, then reorder + aggregate
     "entity_type","category","zone","category1",
     "BOQ name","qty_type","qty_value",
     "length (ft)","width (ft)",
-    "Description",
+    "Description",               # <— appears in Detail tab before Preview
     "Preview","remarks"
 ]
 
@@ -71,9 +88,11 @@ LAYER_HEADERS = [
     "Preview",
 ]
 
+
+
 # ===== Formatting & switches =====
 DEC_PLACES = 2
-FORCE_PLANNER_CATEGORY = True  # If zone exists, send "category" as PLANNER in Detail
+FORCE_PLANNER_CATEGORY = True
 
 # ===== Utilities =====
 def layer_or_misc(name: str) -> str:
@@ -119,20 +138,6 @@ def polygon_area_xy(pts: list[tuple[float,float]]) -> float:
         s += x1*y2 - x2*y1
     return abs(s)*0.5
 
-def _fmt_num(val, places: int | None = None) -> str:
-    if val is None or val == "": return ""
-    try:
-        p = DEC_PLACES if places is None else places
-        num = float(str(val).strip())
-        return f"{num:.{p}f}"
-    except Exception:
-        return ""
-
-def _rgb_to_hex(rgb: tuple[int,int,int]) -> str:
-    r, g, b = rgb
-    return "#{:02X}{:02X}{:02X}".format(r, g, b)
-
-# ===== Curve sampling helpers =====
 def _sample_arc_pts(cx, cy, r, start_deg: Optional[float], end_deg: Optional[float]):
     if r <= 0: return []
     if start_deg is None or end_deg is None:
@@ -292,6 +297,19 @@ def _bbox_of_insert_xy(ins) -> Optional[Tuple[float,float]]:
     except Exception:
         return None
 
+def _fmt_num(val, places: int | None = None) -> str:
+    if val is None or val == "": return ""
+    try:
+        p = DEC_PLACES if places is None else places
+        num = float(str(val).strip())
+        return f"{num:.{p}f}"
+    except Exception:
+        return ""
+
+def _rgb_to_hex(rgb: tuple[int,int,int]) -> str:
+    r, g, b = rgb
+    return "#{:02X}{:02X}{:02X}".format(r, g, b)
+
 # ===== ZONES =====
 def _insert_bbox(ins) -> Optional[tuple[float,float,float,float]]:
     try:
@@ -348,8 +366,6 @@ class Zone:
 
 def _collect_planner_zones(msp) -> list[Zone]:
     zones: list[Zone] = []
-
-    # 1) Prefer PLANNER inserts (bbox zones)
     for ins in msp.query('INSERT[layer=="PLANNER"]'):
         try:
             b = _insert_bbox(ins)
@@ -367,14 +383,11 @@ def _collect_planner_zones(msp) -> list[Zone]:
             except Exception:
                 pass
             if not zname:
-                zname = (getattr(ins, "effective_name", None)
-                         or getattr(ins, "block_name", None)
-                         or getattr(ins.dxf, "name", "")).strip()
+                zname = (getattr(ins, "effective_name", None) or getattr(ins, "block_name", None) or getattr(ins.dxf, "name", "")).strip()
             if not zname: zname = "Zone"
             zones.append(Zone(name=zname, poly=poly))
         except Exception:
             pass
-
     if zones:
         seen = set(); out=[]
         for z in zones:
@@ -383,29 +396,25 @@ def _collect_planner_zones(msp) -> list[Zone]:
                 out.append(z); seen.add(key)
         return out
 
-    # 2) Fallback: closed PLANNER polylines + TEXT/MTEXT labels
     tmp: list[Zone] = []
     for e in msp.query('LWPOLYLINE[layer=="PLANNER"]'):
         try:
             if not bool(getattr(e, "closed", False)): continue
             poly = _poly_from_lwpoly(e)
             if len(poly) >= 3: tmp.append(Zone(name="", poly=poly))
-        except Exception:
-            pass
+        except Exception: pass
     if not tmp: return []
 
     labels: list[tuple[str,tuple[float,float]]] = []
     for t in msp.query('TEXT'):
         try:
             labels.append(((t.dxf.text or "").strip(), (float(t.dxf.insert.x), float(t.dxf.insert.y))))
-        except Exception:
-            pass
+        except Exception: pass
     for mt in msp.query('MTEXT'):
         try:
             raw=(mt.text or "").strip()
             labels.append((raw.split("\n",1)[0].strip(), (float(mt.dxf.insert.x), float(mt.dxf.insert.y))))
-        except Exception:
-            pass
+        except Exception: pass
 
     def _centroid(poly):
         xs=[p[0] for p in poly]; ys=[p[1] for p in poly]
@@ -435,20 +444,6 @@ def _zone_for_point(pt: tuple[float,float], zones: list[Zone]) -> Optional[str]:
             return z.name
     return None
 
-def _entity_center_xy(e) -> Optional[tuple[float,float]]:
-    pts = list(_collect_points_from_entity(e) or [])
-    if not pts:
-        return None
-    xs = [p[0] for p in pts]; ys = [p[1] for p in pts]
-    return ((min(xs)+max(xs))*0.5, (min(ys)+max(ys))*0.5)
-
-def _zone_for_entity(e, zones: list[Zone]) -> str:
-    c = _entity_center_xy(e)
-    if not c:
-        return ""
-    z = _zone_for_point(c, zones)
-    return z or ""
-
 # ===== Row builder =====
 def make_row(entity_type, qty_type, qty_value,
              block_name="", layer="", handle="", remarks="",
@@ -457,15 +452,13 @@ def make_row(entity_type, qty_type, qty_value,
              perimeter=None, area=None, zone:str="", category1:str="",
              description:str="") -> dict:
     return {
-        "entity_type": entity_type,
-        "qty_type": qty_type,
+        "entity_type": entity_type, "qty_type": qty_type,
         "qty_value": _fmt_num(qty_value),
         "block_name": block_name or "",
         "layer": layer_or_misc(layer),
         "zone": (zone or ""),
         "category1": category1 or "",
-        "handle": handle or "",
-        "remarks": remarks or "",
+        "handle": handle or "", "remarks": remarks or "",
         "bbox_length": _fmt_num(bbox_length),
         "bbox_width":  _fmt_num(bbox_width),
         "preview_b64": preview_b64 or "",
@@ -477,6 +470,10 @@ def make_row(entity_type, qty_type, qty_value,
 
 # ===== Previews (Detail) =====
 def _render_preview_from_insert(ins, size_px: int = 192, pad_ratio: float = 0.06) -> str:
+    """
+    Render a transparent PNG preview (base64) from INSERT geometry.
+    ✅ Fixes: always closes figures (no memory leaks), logs errors.
+    """
     fig = None
     buf = None
     try:
@@ -484,6 +481,7 @@ def _render_preview_from_insert(ins, size_px: int = 192, pad_ratio: float = 0.06
         minx = miny = float("inf")
         maxx = maxy = float("-inf")
 
+        # Collect geometry from virtual entities
         for ve in ins.virtual_entities():
             et = ve.dxftype()
             pts: list[tuple[float, float]] = []
@@ -562,15 +560,19 @@ def _render_preview_from_insert(ins, size_px: int = 192, pad_ratio: float = 0.06
                 if r > 0:
                     pts = list(_sample_arc_pts(cx, cy, r, sa, ea))
 
+            # Keep only valid polyline-like geometry
             if len(pts) >= 2 and any(pts[i] != pts[i + 1] for i in range(len(pts) - 1)):
                 polylines.append(pts)
                 for (x, y) in pts:
-                    minx = min(minx, x); miny = min(miny, y)
-                    maxx = max(maxx, x); maxy = max(maxy, y)
+                    minx = min(minx, x)
+                    miny = min(miny, y)
+                    maxx = max(maxx, x)
+                    maxy = max(maxy, y)
 
         if minx == float("inf") or not polylines:
             return ""
 
+        # Compute view bounds (square with padding)
         w = max(maxx - minx, 1.0)
         h = max(maxy - miny, 1.0)
         size = max(w, h)
@@ -582,6 +584,7 @@ def _render_preview_from_insert(ins, size_px: int = 192, pad_ratio: float = 0.06
         xmin, xmax = cx - half, cx + half
         ymin, ymax = cy - half, cy + half
 
+        # ✅ Create figure (must be closed in finally)
         fig = plt.figure(figsize=(size_px / 100, size_px / 100), dpi=100)
         ax = fig.add_subplot(111)
         ax.axis("off")
@@ -598,13 +601,18 @@ def _render_preview_from_insert(ins, size_px: int = 192, pad_ratio: float = 0.06
         buf = io.BytesIO()
         plt.subplots_adjust(0, 0, 1, 1)
         fig.savefig(buf, format="png", transparent=True, bbox_inches="tight", pad_inches=0)
+
         return base64.b64encode(buf.getvalue()).decode("ascii")
 
     except Exception as ex:
+        # ✅ Do NOT swallow silently on server — log the cause
         logging.exception("Preview render failed for INSERT=%s : %s",
-                          getattr(getattr(ins, "dxf", None), "name", "<?>"), ex)
+                          getattr(getattr(ins, "dxf", None), "name", "<?>"),
+                          ex)
         return ""
+
     finally:
+        # ✅ ALWAYS close figure to avoid "More than 20 figures opened" + memory blow
         try:
             if fig is not None:
                 plt.close(fig)
@@ -616,26 +624,39 @@ def _render_preview_from_insert(ins, size_px: int = 192, pad_ratio: float = 0.06
         except Exception:
             pass
 
+
 def _build_preview_cache(msp) -> Dict[str, str]:
+    """
+    Build base64 preview cache per unique block name.
+    ✅ Adds safety close-all at end.
+    """
     cache: Dict[str, str] = {}
+    count = 0
     for ins in msp.query("INSERT"):
         try:
-            name = (getattr(ins, "effective_name", None)
-                    or getattr(ins, "block_name", None)
-                    or getattr(ins.dxf, "name", ""))
+            name = (
+                getattr(ins, "effective_name", None)
+                or getattr(ins, "block_name", None)
+                or getattr(ins.dxf, "name", "")
+            )
             if not name or name in cache:
                 continue
+
             cache[name] = _render_preview_from_insert(ins) or ""
+            count += 1
+
         except Exception:
             logging.exception("Preview cache build failed for one INSERT")
+            # continue
+
+    # extra safety
     try:
         plt.close("all")
     except Exception:
         pass
+
     logging.info("Preview cache built for %d unique blocks", len(cache))
     return cache
-
-# ===== Colors =====
 def _layer_rgb_map(doc) -> Dict[str, tuple[int,int,int]]:
     m: Dict[str, tuple[int,int,int]] = {}
     try:
@@ -683,8 +704,8 @@ def _entity_weight_for_colorvote(e) -> float:
         if et == "LWPOLYLINE":
             verts=list(e)
             if not verts: return 0.0
-            dense=[]; n=len(verts)
             closed=bool(getattr(e,"closed",False))
+            dense=[]; n=len(verts)
             for i in range(n if closed else n-1):
                 j=(i+1)%n
                 try: b=float(verts[i][4])
@@ -731,20 +752,19 @@ def _dominant_layer_rgb_map(msp, base_layer_rgb: Dict[str, tuple[int,int,int]], 
         if w <= 0: w = 1.0
         d = votes.setdefault(ly, {})
         d[rgb] = d.get(rgb, 0.0) + w
-
     for et in ("LINE","LWPOLYLINE","POLYLINE","ARC","CIRCLE","HATCH"):
         for e in msp.query(et):
             try: _acc(e)
             except Exception: pass
-
     out = dict(base_layer_rgb)
     for ly, hist in votes.items():
-        if hist:
+        if hist: 
             out[ly] = max(hist.items(), key=lambda kv: kv[1])[0]
     return out
 
 # ===== Description helpers =====
 def _description_from_insert(ins) -> str:
+    """Prefer INSERT attributes with tags in DESC_TAGS."""
     try:
         for att in getattr(ins, "attribs", lambda: [])() or []:
             tag = (getattr(att.dxf, "tag", "") or "").upper()
@@ -757,6 +777,7 @@ def _description_from_insert(ins) -> str:
     return ""
 
 def _description_from_blockrecord(msp, base_name: str) -> str:
+    """Fallback to BlockRecord.dxf.description."""
     try:
         if base_name and hasattr(msp, "doc") and base_name in msp.doc.blocks:
             blkrec = msp.doc.blocks.get(base_name)
@@ -766,6 +787,7 @@ def _description_from_blockrecord(msp, base_name: str) -> str:
     return ""
 
 def _attdef_default_for_desc(msp, base_name: str) -> str:
+    """Last resort: ATTDEF default text for any tag in DESC_TAGS within the block definition."""
     try:
         if base_name and hasattr(msp, "doc") and base_name in msp.doc.blocks:
             blk = msp.doc.blocks.get(base_name)
@@ -783,36 +805,32 @@ def iter_block_rows(msp, include_xrefs: bool,
                     scale_to_m: float, target_units: str,
                     preview_cache: Dict[str,str] | None = None,
                     zones: list[Zone] | None = None) -> list[dict]:
-    out = []
-    preview_cache = preview_cache or {}
-    zones = zones or []
-
+    out = []; preview_cache = preview_cache or {}; zones = zones or []
     for ins in msp.query("INSERT"):
         try:
             ly = getattr(ins.dxf, "layer", "")
             if layer_or_misc(ly).upper() == "PLANNER":
                 continue
 
-            name = (getattr(ins, "effective_name", None)
-                    or getattr(ins, "block_name", None)
-                    or getattr(ins.dxf, "name", ""))
+            # Block names
+            name = getattr(ins, "effective_name", None) or getattr(ins, "block_name", None) or getattr(ins.dxf, "name", "")
             base_name = name
-
             if not include_xrefs and ("|" in (name or "")):
                 continue
 
-            # Description (fallback chain)
+            # -------- Description (multi-fallback) --------
             desc_txt = _description_from_insert(ins)
             if not desc_txt:
                 desc_txt = _description_from_blockrecord(msp, base_name)
             if not desc_txt:
                 desc_txt = _attdef_default_for_desc(msp, base_name)
+            logging.debug("Block %s → description: %r", name, desc_txt)
+            # ----------------------------------------------
 
             # Dimensions (object-aligned bbox)
             bbox_du = _bbox_of_insert_xy(ins)
             if bbox_du:
-                L_m = bbox_du[0] * scale_to_m
-                W_m = bbox_du[1] * scale_to_m
+                L_m = bbox_du[0] * scale_to_m; W_m = bbox_du[1] * scale_to_m
                 L_out = to_target_units(L_m, target_units, "length")
                 W_out = to_target_units(W_m, target_units, "length")
             else:
@@ -844,26 +862,9 @@ def iter_block_rows(msp, include_xrefs: bool,
             ))
         except Exception as ex:
             logging.exception("INSERT failed: %s", ex)
-
     return out
 
 # ===== Layer metrics =====
-def solve_rect_dims_from_perimeter_area(P: float, A: float) -> Tuple[Optional[float], Optional[float]]:
-    try:
-        if P is None or A is None or P <= 0 or A <= 0:
-            return (None, None)
-        S = P / 2.0
-        D = S*S - 4.0*A
-        if D < -1e-9: return (None, None)
-        D = max(D, 0.0)
-        root = math.sqrt(D)
-        a = 0.5*(S + root)
-        b = 0.5*(S - root)
-        if a <= 0 or b <= 0: return (None, None)
-        return (a, b) if a >= b else (b, a)
-    except Exception:
-        return (None, None)
-
 def compute_layer_metrics(msp, scale_to_m: float, target_units: str, zones: list[Zone]):
     open_len: Dict[tuple[str,str], float] = {}
     peri:     Dict[tuple[str,str], float] = {}
@@ -988,10 +989,28 @@ def compute_layer_metrics(msp, scale_to_m: float, target_units: str, zones: list
 
     return open_len, peri, area
 
-def make_layer_total_rows(open_by, peri_by, area_by, layer_rgb=None):
+def solve_rect_dims_from_perimeter_area(P: float, A: float) -> Tuple[Optional[float], Optional[float]]:
+    try:
+        if P is None or A is None or P <= 0 or A <= 0:
+            return (None, None)
+        S = P / 2.0
+        D = S*S - 4.0*A
+        if D < -1e-9: return (None, None)
+        D = max(D, 0.0)
+        root = math.sqrt(D)
+        a = 0.5*(S + root)
+        b = 0.5*(S - root)
+        if a <= 0 or b <= 0: return (None, None)
+        return (a, b) if a >= b else (b, a)
+    except Exception:
+        return (None, None)
+
+def make_layer_total_rows(open_by, peri_by, area_by, layer_rgb=None, mode: str = "split"):
     rows = []
     layer_rgb = layer_rgb or {}
+
     all_keys = sorted(set(open_by.keys()) | set(peri_by.keys()) | set(area_by.keys()))
+    # all_keys is like: (zone, layer)
 
     def hex_for(ly: str) -> str:
         rgb = layer_rgb.get(ly)
@@ -1021,63 +1040,71 @@ def make_layer_total_rows(open_by, peri_by, area_by, layer_rgb=None):
             ))
     return rows
 
-# ===== Sorting (keeps category blocks tidy) =====
-def _norm_cat(s: str) -> str:
-    s = (s or "").strip()
-    s = " ".join(s.split())
-    return s.upper()
-
-def sort_rows_for_category_blocks(rows: list[dict]) -> None:
-    def _key(r):
-        et = r.get("entity_type", "")
-        cat  = _norm_cat(r.get("layer", ""))
-        zone = (r.get("zone","") or "").lower()
-
-        if et == "LAYER_SUMMARY":
-            zone_rank = 1 if zone == "" else 0
-            return (cat, zone_rank, zone)
-
-        cat1 = (r.get("category1","") or "").lower()
-        return (cat, zone, cat1, r.get("block_name",""))
-    rows.sort(key=_key)
-
-# ===== CSV =====
+# ===== I/O =====
 def write_csv(rows: list[dict], out_path: Path) -> None:
+    def _find(hint: str) -> str:
+        for h in CSV_HEADERS:
+            if hint.lower() in h.lower():
+                return h
+        raise KeyError(f"CSV_HEADERS missing a column containing: {hint}")
+
+    LENGTH_COL = _find("length")
+    WIDTH_COL  = _find("width")
+    AREA_COL   = _find("area")
+    PERI_COL   = _find("perimeter")
+    PREV_COL   = _find("preview")
+    BOQ_COL    = _find("boq name")
+    QTY_T_COL  = _find("qty_type")
+    QTY_V_COL  = _find("qty_value")
+    ENT_COL    = _find("entity_type")
+    CAT_COL    = _find("category")
+    ZONE_COL   = _find("zone")
+    CAT1_COL   = _find("category1")
+    DESC_COL   = _find("description")
+    REM_COL    = _find("remarks")
+
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=CSV_HEADERS)
         writer.writeheader()
         for r in rows:
             writer.writerow({
-                "entity_type": r.get("entity_type",""),
-                "category":    r.get("layer",""),
-                "zone":        r.get("zone",""),
-                "category1":   r.get("category1",""),
-                "BOQ name":    r.get("block_name",""),
-                "qty_type":    r.get("qty_type",""),
-                "qty_value":   r.get("qty_value",""),
-                "length (ft)": r.get("bbox_length",""),
-                "width (ft)":  r.get("bbox_width",""),
-                "perimeter":   r.get("perimeter",""),
-                "area (ft2)":  r.get("area",""),
-                "Description": r.get("description",""),
-                "Preview":     "",  # preview images handled by Web App
-                "remarks":     r.get("remarks",""),
+                ENT_COL:   r.get("entity_type",""),
+                CAT_COL:   r.get("layer",""),
+                ZONE_COL:  r.get("zone",""),
+                CAT1_COL:  r.get("category1",""),
+                BOQ_COL:   r.get("block_name",""),
+                QTY_T_COL: r.get("qty_type",""),
+                QTY_V_COL: r.get("qty_value",""),
+                LENGTH_COL: r.get("bbox_length",""),
+                WIDTH_COL:  r.get("bbox_width",""),
+                PERI_COL:   r.get("perimeter",""),
+                AREA_COL:   r.get("area",""),
+                DESC_COL:   r.get("description",""),
+                PREV_COL:   "",  # preview images handled by Web App
+                REM_COL:     r.get("remarks",""),
             })
 
-# ===== Sheets upload =====
-def split_rows_for_upload(rows: list[dict]) -> tuple[list[dict], list[dict]]:
-    detail, layer = [], []
-    for r in rows:
-        if (r.get("entity_type") == "LAYER_SUMMARY") and (r.get("qty_type") == "layer"):
-            layer.append(r)
-        else:
-            detail.append(r)
-    return detail, layer
+
+def _entity_center_xy(e) -> Optional[tuple[float,float]]:
+    pts = list(_collect_points_from_entity(e) or [])
+    if not pts:
+        return None
+    xs = [p[0] for p in pts]; ys = [p[1] for p in pts]
+    return ((min(xs)+max(xs))*0.5, (min(ys)+max(ys))*0.5)
+
+def _zone_for_entity(e, zones: list[Zone]) -> str:
+    c = _entity_center_xy(e)
+    if not c:
+        return ""
+    z = _zone_for_point(c, zones)
+    return z or ""
+
+
 
 def push_rows_to_webapp(rows: list[dict], webapp_url: str, spreadsheet_id: str,
                         tab: str, mode: str = "replace", summary_tab: str = "",
-                        batch_rows: int = 300, timeout: int = 300,
+                        batch_rows: int = 25, timeout: int = 300,
                         valign_middle: bool = False, sparse_anchor: str = "last",
                         drive_folder_id: str = "") -> None:
     if not webapp_url or not spreadsheet_id or not tab:
@@ -1105,33 +1132,34 @@ def push_rows_to_webapp(rows: list[dict], webapp_url: str, spreadsheet_id: str,
         if is_layer:
             headers = LAYER_HEADERS
             data_rows = [[
-                r.get("layer",""),         # category
-                r.get("zone",""),          # zone
+                r.get("layer",""),         # category  ✅ first
+                r.get("zone",""),          # zone      ✅ second
                 r.get("bbox_length",""),   # length (ft)
                 r.get("bbox_width",""),    # width (ft)
                 r.get("perimeter",""),
                 r.get("area",""),
                 "",                        # Preview
             ] for r in chunk]
+
             images     = [""] * len(chunk)
             bg_colors  = [r.get("preview_hex","") for r in chunk]
             color_only = True
 
+
         else:
-            # Keep headers stable; Apps Script will reshape the Detail tab
             headers = DETAIL_HEADERS
             data_rows = [[
                 r.get("entity_type",""),
-                r.get("layer",""),         # category (Apps Script drops this)
+                r.get("layer",""),
                 r.get("zone",""),
                 r.get("category1",""),
-                r.get("block_name",""),    # BOQ name
+                r.get("block_name",""),
                 r.get("qty_type",""),
                 r.get("qty_value",""),
                 r.get("bbox_length",""),
                 r.get("bbox_width",""),
-                r.get("description",""),
-                "",                        # Preview
+                r.get("description",""),   # <— Description value to Sheet
+                "",
                 r.get("remarks",""),
             ] for r in chunk]
             images     = [r.get("preview_b64","") for r in chunk]
@@ -1163,7 +1191,32 @@ def push_rows_to_webapp(rows: list[dict], webapp_url: str, spreadsheet_id: str,
         sent += len(data_rows)
         logging.info("WebApp batch %d: uploaded %d/%d rows", idx, sent, total)
 
-# ===== Main pipeline =====
+def _norm_cat(s: str) -> str:
+    s = (s or "").strip()
+    s = " ".join(s.split())
+    return s.upper()
+
+def sort_rows_for_category_blocks(rows: list[dict]) -> None:
+    def _key(r):
+        et = r.get("entity_type", "")
+        if et == "LAYER_SUMMARY":
+            cat  = _norm_cat(r.get("layer", ""))
+            zone = (r.get("zone","") or "").lower()
+
+            # push blank-zone rows to the end within each category
+            zone_rank = 1 if zone == "" else 0
+
+            return (cat, zone_rank, zone)
+
+        # existing logic for INSERT rows
+        cat  = _norm_cat(r.get("layer", ""))
+        zone = (r.get("zone","") or "").lower()
+        cat1 = (r.get("category1","") or "").lower()
+        et_rank = 0 if et == "INSERT" else 1
+        return (cat, zone, cat1, et_rank, r.get("block_name",""))
+
+    rows.sort(key=_key)
+
 def collect_dxf_files(path: Path, recursive: bool) -> List[Path]:
     if path.is_file():
         if path.suffix.lower() == ".dxf": return [path]
@@ -1178,20 +1231,23 @@ def collect_dxf_files(path: Path, recursive: bool) -> List[Path]:
 def derive_out_path(dxf_path: Path, out_dir: Path | None) -> Path:
     return (out_dir / f"{dxf_path.stem}_raw_extract.csv") if out_dir else dxf_path.with_name(f"{dxf_path.stem}_raw_extract.csv")
 
+def split_rows_for_upload(rows: list[dict]) -> tuple[list[dict], list[dict]]:
+    detail, layer = [], []
+    for r in rows:
+        if (r.get("entity_type") == "LAYER_SUMMARY") and (r.get("qty_type") == "layer"):
+            layer.append(r)
+        else:
+            detail.append(r)
+    return detail, layer
+
+# ===== Main pipeline =====
 def process_one_dxf(dxf_path: Path, out_dir: Path | None,
                     target_units: str, include_xrefs: bool,
                     layer_metrics: bool, aggregate_inserts: bool,
-                    unitless_units: str) -> list[dict]:
+                    layer_metrics_mode: str, unitless_units: str) -> list[dict]:
     logging.info("Processing DXF: %s", dxf_path)
 
-    # robust read
-    try:
-        doc = ezdxf.readfile(str(dxf_path))
-    except ezdxf.DXFStructureError:
-        logging.warning("DXFStructureError — attempting recover.readfile()")
-        doc, _auditor = recover.readfile(str(dxf_path))
-
-    msp = doc.modelspace()
+    doc = ezdxf.readfile(str(dxf_path)); msp = doc.modelspace()
     logging.info("DWG $INSUNITS: %s", doc.header.get("$INSUNITS", "n/a"))
     scale_to_m = units_scale_to_meters(doc, unitless_units=unitless_units)
 
@@ -1202,17 +1258,12 @@ def process_one_dxf(dxf_path: Path, out_dir: Path | None,
 
     insert_rows = iter_block_rows(msp, include_xrefs, scale_to_m, target_units, preview_cache, zones)
 
-    # Aggregate inserts by (BOQ, category(layer), zone) so Apps Script can later combine zones
     if aggregate_inserts:
         groups: Dict[tuple[str,str,str], dict] = {}
         for r in insert_rows:
             key = (r["block_name"], "PLANNER" if FORCE_PLANNER_CATEGORY else r["layer"], r.get("zone",""))
-            g = groups.setdefault(key, {
-                "count":0, "xs":[], "ys":[],
-                "preview": r.get("preview_b64",""),
-                "category1": r.get("category1",""),
-                "desc": r.get("description","")
-            })
+            g = groups.setdefault(key, {"count":0,"xs":[],"ys":[], "preview": r.get("preview_b64",""),
+                                        "category1": r.get("category1",""), "desc": r.get("description","")})
             g["count"] += 1
             try:
                 if r["bbox_length"] and r["bbox_width"]:
@@ -1222,7 +1273,6 @@ def process_one_dxf(dxf_path: Path, out_dir: Path | None,
                 pass
             if (not g.get("desc")) and r.get("description"):
                 g["desc"] = r.get("description","")
-
         for (name, layer, zone_name), g in groups.items():
             xs = sorted(g["xs"]); ys = sorted(g["ys"])
             bx = xs[len(xs)//2] if xs else None
@@ -1230,11 +1280,8 @@ def process_one_dxf(dxf_path: Path, out_dir: Path | None,
             rows.append(make_row(
                 "INSERT", "count", float(g["count"]),
                 block_name=name, layer=layer, handle="",
-                remarks=f"aggregated {g['count']} inserts",
-                bbox_length=bx, bbox_width=by,
-                preview_b64=g.get("preview",""),
-                zone=zone_name,
-                category1=g.get("category1",""),
+                remarks=f"aggregated {g['count']} inserts", bbox_length=bx, bbox_width=by,
+                preview_b64=g.get("preview",""), zone=zone_name, category1=g.get("category1",""),
                 description=g.get("desc","")
             ))
     else:
@@ -1242,13 +1289,15 @@ def process_one_dxf(dxf_path: Path, out_dir: Path | None,
 
     if layer_metrics:
         open_by, peri_by, area_by = compute_layer_metrics(msp, scale_to_m, target_units, zones)
+
         base_layer_rgb = _layer_rgb_map(doc)
         dom_layer_rgb  = _dominant_layer_rgb_map(msp, base_layer_rgb, scale_to_m)
-        rows.extend(make_layer_total_rows(open_by, peri_by, area_by, layer_rgb=dom_layer_rgb))
+        rows.extend(make_layer_total_rows(open_by, peri_by, area_by, layer_rgb=dom_layer_rgb, mode=layer_metrics_mode))
 
     sort_rows_for_category_blocks(rows)
 
     out_path = derive_out_path(dxf_path, out_dir)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     write_csv(rows, out_path)
     logging.info("CSV written to: %s", out_path)
     return rows
@@ -1263,10 +1312,11 @@ def main():
     ap.add_argument("--include-xrefs", action="store_true")
     ap.add_argument("--no-layer-metrics", action="store_true")
     ap.add_argument("--no-aggregate-inserts", action="store_true")
+    ap.add_argument("--layer-metrics-mode", choices=["combined","split"], default="split")
     ap.add_argument("--gs-webapp", default=None); ap.add_argument("--gsheet-id", default=None)
     ap.add_argument("--gsheet-tab", default=None); ap.add_argument("--gsheet-summary-tab", default=None)
     ap.add_argument("--gsheet-mode", choices=["replace","append"], default=None)
-    ap.add_argument("--batch-rows", type=int, default=300)
+    ap.add_argument("--batch-rows", type=int, default=3000)
     ap.add_argument("--align-middle", action="store_true")
     ap.add_argument("--sparse-anchor", choices=["first","last","middle"], default="last")
     ap.add_argument("--drive-folder-id", default=None)
@@ -1293,7 +1343,7 @@ def main():
     gsheet_tab = (args.gsheet_tab if args.gsheet_tab is not None else GSHEET_TAB).strip()
     gsheet_summary_tab = (args.gsheet_summary_tab if args.gsheet_summary_tab is not None else GSHEET_SUMMARY_TAB).strip()
     gsheet_mode = (args.gsheet_mode if args.gsheet_mode is not None else GSHEET_MODE).strip().lower()
-    batch_rows = int(args.batch_rows)
+    batch_rows = args.batch_rows
     align_middle = args.align_middle
     sparse_anchor = args.sparse_anchor
     drive_folder_id = (args.drive_folder_id if args.drive_folder_id is not None else GS_DRIVE_FOLDER_ID).strip()
@@ -1307,14 +1357,14 @@ def main():
     def _summary_tab_name():
         return gsheet_summary_tab if gsheet_summary_tab else (gsheet_tab + "_ByLayer")
 
-    # Single file explicit output
     if explicit_out:
         if len(files) != 1:
             logging.error("--out is for a single file. For folders, use --out-dir."); return
         f = files[0]
         rows = process_one_dxf(f, explicit_out.parent, args.target_units, args.include_xrefs,
-                               layer_metrics, aggregate_inserts,
+                               layer_metrics, aggregate_inserts, args.layer_metrics_mode,
                                unitless_units=args.unitless_units)
+        explicit_out.parent.mkdir(parents=True, exist_ok=True)
         write_csv(rows, explicit_out)
 
         if gs_webapp and gsheet_id:
@@ -1330,15 +1380,15 @@ def main():
                                     sparse_anchor=sparse_anchor, drive_folder_id=drive_folder_id)
         return
 
-    # Folder mode
     out_dir = out_dir if str(out_dir).strip() else None
     all_rows: list[dict] = []
     for f in files:
         try:
             rows = process_one_dxf(f, out_dir, args.target_units, args.include_xrefs,
-                                   layer_metrics, aggregate_inserts,
+                                   layer_metrics, aggregate_inserts, args.layer_metrics_mode,
                                    unitless_units=args.unitless_units)
-            all_rows.extend(rows or [])
+            all_rows.extend(rows or []
+            )
         except Exception as ex:
             logging.exception("Failed processing %s: %s", f, ex)
 
@@ -1353,6 +1403,283 @@ def main():
                                 "replace" if gsheet_mode=="replace" else "append", "",
                                 batch_rows=batch_rows, valign_middle=align_middle,
                                 sparse_anchor=sparse_anchor, drive_folder_id=drive_folder_id)
+
+
+
+def process_doc_from_stream(
+    stream: io.TextIOBase,
+    *,
+    target_units: str = "ft",
+    include_xrefs: bool = False,
+    layer_metrics: bool = True,
+    aggregate_inserts: bool = True,
+    layer_metrics_mode: str = "split",
+    unitless_units: str = "m",
+    gs_webapp_url: Optional[str] = None,
+    gsheet_id: Optional[str] = None,
+    gsheet_tab: Optional[str] = None,
+    gsheet_summary_tab: Optional[str] = None,
+    gsheet_mode: Optional[str] = None,
+    batch_rows: int = 1000,
+    align_middle: bool = False,
+    sparse_anchor: str = "last",
+    drive_folder_id: str = "",
+) -> dict:
+    """
+    Read DXF text from an in-memory stream, compute rows, push to Apps Script WebApp,
+    and return a small JSON summary. No disk writes.
+    """
+    # 1) Read text from the stream
+    dxf_text = stream.read()
+    if not dxf_text or ("AutoCAD Binary DXF" in dxf_text[:64]):
+        raise ValueError("Binary DXF or empty payload. Please upload ASCII DXF.")
+
+    # 2) Parse the doc from text (ASCII DXF)
+
+
+    try:
+        # Try normal ASCII DXF read
+        doc = ezdxf.read(io.StringIO(dxf_text))
+    except ezdxf.DXFStructureError:
+        # Fallback: try to recover (binary or partially corrupt DXF)
+        print("⚠️ Detected binary or mixed DXF — attempting recover()")
+        with tempfile.NamedTemporaryFile("w+b", delete=False, suffix=".dxf") as tmp:
+            tmp.write(dxf_text.encode("latin-1", "ignore"))
+            tmp.flush()
+            doc, auditor = recover.readfile(tmp.name)
+            if auditor.has_errors:
+                print(f"⚠️ DXF recovery completed with {len(auditor.errors)} issues.")
+
+    msp = doc.modelspace()
+
+    # 3) Units & caches
+    scale_to_m = units_scale_to_meters(doc, unitless_units=unitless_units)
+    preview_cache = _build_preview_cache(msp)
+    zones = _collect_planner_zones(msp)
+
+    # 4) Build rows (INSERTs)
+    insert_rows = iter_block_rows(
+        msp, include_xrefs, scale_to_m, target_units, preview_cache, zones
+    )
+
+    # 5) Aggregate (optional)
+    rows: list[dict] = []
+    if aggregate_inserts:
+        groups: Dict[tuple[str,str,str], dict] = {}
+        for r in insert_rows:
+            key = (r["block_name"], "PLANNER" if FORCE_PLANNER_CATEGORY else r["layer"], r.get("zone",""))
+            g = groups.setdefault(key, {"count":0,"xs":[],"ys":[], "preview": r.get("preview_b64",""),
+                                        "category1": r.get("category1",""), "desc": r.get("description","")})
+            g["count"] += 1
+            try:
+                if r["bbox_length"] and r["bbox_width"]:
+                    g["xs"].append(float(r["bbox_length"]))
+                    g["ys"].append(float(r["bbox_width"]))
+            except Exception:
+                pass
+            if (not g.get("desc")) and r.get("description"):
+                g["desc"] = r.get("description","")
+        for (name, layer, zone_name), g in groups.items():
+            xs = sorted(g["xs"]); ys = sorted(g["ys"])
+            bx = xs[len(xs)//2] if xs else None
+            by = ys[len(ys)//2] if ys else None
+            rows.append(make_row(
+                "INSERT","count",float(g["count"]),
+                block_name=name, layer=layer, handle="",
+                remarks=f"aggregated {g['count']} inserts", bbox_length=bx, bbox_width=by,
+                preview_b64=g.get("preview",""), zone=zone_name,
+                category1=g.get("category1",""), description=g.get("desc","")
+            ))
+    else:
+        rows.extend(insert_rows)
+
+    # 6) Layer metrics (optional)
+    layer_rows: list[dict] = []
+    if layer_metrics:
+        open_by, peri_by, area_by = compute_layer_metrics(msp, scale_to_m, target_units, zones)
+        base_layer_rgb = _layer_rgb_map(doc)
+        dom_layer_rgb  = _dominant_layer_rgb_map(msp, base_layer_rgb, scale_to_m)
+        layer_rows = make_layer_total_rows(open_by, peri_by, area_by,
+                                           layer_rgb=dom_layer_rgb, mode=layer_metrics_mode)
+        rows.extend(layer_rows)
+
+    sort_rows_for_category_blocks(rows)
+
+    # 7) Push to Google Sheet via your Apps Script WebApp (env defaults)
+    webapp = (gs_webapp_url or os.getenv("GS_WEBAPP_URL") or GS_WEBAPP_URL).strip()
+    sid    = (gsheet_id or os.getenv("GSHEET_ID") or GSHEET_ID).strip()
+    tab    = (gsheet_tab or os.getenv("GSHEET_TAB") or GSHEET_TAB).strip()
+    sumtab = (gsheet_summary_tab or os.getenv("GSHEET_SUMMARY_TAB") or "").strip()
+    mode   = (gsheet_mode or os.getenv("GSHEET_MODE") or GSHEET_MODE or "replace").strip().lower()
+    dfid   = (drive_folder_id or os.getenv("GS_DRIVE_FOLDER_ID") or "").strip()
+
+    detail_rows, bylayer_rows = split_rows_for_upload(rows)
+
+    uploaded_detail = 0
+    uploaded_layer  = 0
+    if webapp and sid and tab and detail_rows:
+        push_rows_to_webapp(detail_rows, webapp, sid, tab, mode, "",
+                            batch_rows=batch_rows, valign_middle=align_middle,
+                            sparse_anchor=sparse_anchor, drive_folder_id=dfid)
+        uploaded_detail = len(detail_rows)
+
+    # Summary tab: auto “<TAB>_ByLayer” when not specified
+    summary_tab = sumtab if sumtab else (tab + "_ByLayer")
+    if webapp and sid and summary_tab and bylayer_rows:
+        push_rows_to_webapp(bylayer_rows, webapp, sid, summary_tab,
+                            "replace" if mode=="replace" else "append", "",
+                            batch_rows=batch_rows, valign_middle=align_middle,
+                            sparse_anchor=sparse_anchor, drive_folder_id=dfid)
+        uploaded_layer = len(bylayer_rows)
+
+    return {
+        "status": "ok",
+        "uploaded_rows": uploaded_detail + uploaded_layer,
+        "detail_rows": uploaded_detail,
+        "layer_rows": uploaded_layer,
+        "sheet_tab": tab,
+        "summary_tab": summary_tab,
+        "gsheet_id": sid,
+        "units": {"insunits_to_m": scale_to_m, "target_units": target_units, "unitless_units": unitless_units},
+        "flags": {
+            "include_xrefs": include_xrefs,
+            "layer_metrics": layer_metrics,
+            "aggregate_inserts": aggregate_inserts,
+            "layer_metrics_mode": layer_metrics_mode
+        }
+    }
+
+
+
+
+# ------------------ Minimal API (same file) ------------------
+app = FastAPI(title="DXF → Google Sheets (stateless)")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=os.getenv("CORS_ALLOW_ORIGINS","*").split(","),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+
+# Serve your index.html at /
+@app.get("/", response_class=HTMLResponse)
+def home():
+    try:
+        here = Path(__file__).parent
+        html = (here / "index.html").read_text(encoding="utf-8")
+    except Exception:
+        html = "<h1>DXF → Sheets</h1><p>Place index.html next to this script.</p>"
+    return HTMLResponse(content=html, status_code=200)
+
+# 20 MB guard
+MAX_BYTES = 20 * 1024 * 1024
+
+@app.get("/ping")
+def ping():
+    return {"pong": True}
+
+@app.post("/process")
+async def process_endpoint(
+    file: UploadFile = File(...),
+    target_units: str = Form("ft"),
+    include_xrefs: str = Form("false"),
+    layer_metrics: str = Form("true"),
+    aggregate_inserts: str = Form("true"),
+    layer_metrics_mode: str = Form("split"),
+    unitless_units: str = Form("m"),
+    gsheet_tab: str = Form(None),
+    gsheet_summary_tab: str = Form(None),
+    gsheet_mode: str = Form(None),
+    batch_rows: int = Form(1000),
+    sparse_anchor: str = Form("last"),
+    align_middle: str = Form("false"),
+    drive_folder_id: str = Form(""),
+):
+    contents = await file.read()
+    if len(contents) > MAX_BYTES:
+        raise HTTPException(status_code=413, detail="Payload too large (>20MB).")
+
+    head = contents[:64]
+    if b"AutoCAD Binary DXF" in head:
+        raise HTTPException(status_code=415, detail="Binary DXF not supported. Please upload ASCII DXF.")
+
+    try:
+        text = contents.decode("utf-8")
+    except UnicodeDecodeError:
+        try:
+            text = contents.decode("latin-1")
+        except Exception:
+            raise HTTPException(status_code=400, detail="Unable to decode DXF text (utf-8/latin-1).")
+
+    def sbool(s): return str(s).strip().lower() in ("1", "true", "yes", "on")
+
+    try:
+        summary = process_doc_from_stream(
+            io.StringIO(text),
+            target_units=target_units,
+            include_xrefs=sbool(include_xrefs),
+            layer_metrics=sbool(layer_metrics),
+            aggregate_inserts=sbool(aggregate_inserts),
+            layer_metrics_mode=layer_metrics_mode,
+            unitless_units=unitless_units,
+            gsheet_tab=gsheet_tab,
+            gsheet_summary_tab=gsheet_summary_tab,
+            gsheet_mode=gsheet_mode,
+            batch_rows=int(batch_rows),
+            sparse_anchor=sparse_anchor,
+            align_middle=sbool(align_middle),
+            drive_folder_id=drive_folder_id,
+        )
+
+        # 🔹 Build a React-friendly response
+        gsheet_id = summary.get("gsheet_id")
+        sheet_tab = summary.get("sheet_tab")
+        sheet_url = f"https://docs.google.com/spreadsheets/d/{gsheet_id}" if gsheet_id else None
+
+        return JSONResponse({
+            "ok": True,
+            "message": "BOQ generated successfully",
+            "sheetUrl": sheet_url,
+            "sheetName": sheet_tab,
+            "uploadId": file.filename,   # or generate a custom run id
+            "summary": summary,          # full debug info if you need it
+        })
+
+    except ValueError as ve:
+        raise HTTPException(status_code=415, detail=str(ve))
+    except Exception as ex:
+        logging.exception("Processing failed: %s", ex)
+        raise HTTPException(status_code=500, detail=f"Server error: {ex}")
+
+# Run API if env says so (so CLI still works when you want)
+if os.getenv("RUN_AS_API", "").lower() in ("1","true","yes"):
+    # Example: RUN_AS_API=1 uvicorn yourscript:app --host 0.0.0.0 --port 8000
+    pass
+# -------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 if __name__ == "__main__":
     main()
