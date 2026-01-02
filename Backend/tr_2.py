@@ -1253,6 +1253,100 @@ def process_one_dxf(dxf_path: Path, out_dir: Path | None,
     logging.info("CSV written to: %s", out_path)
     return rows
 
+
+# =========================
+# FastAPI/Render entrypoint
+# =========================
+def process_doc_from_stream(stream) -> dict:
+    """
+    Called by Backend/app.py:
+        process_doc_from_stream(io.StringIO(dxf_text))
+
+    Writes the text DXF to a temp .dxf file, runs the existing pipeline,
+    pushes to Google Sheets via your Apps Script WebApp, and returns a summary.
+    """
+    import uuid
+    import tempfile
+    from pathlib import Path
+
+    # 1) Read DXF text from stream
+    try:
+        dxf_text = stream.read()
+    except Exception as e:
+        raise ValueError(f"Could not read DXF stream: {e}")
+
+    if not dxf_text or not str(dxf_text).strip():
+        raise ValueError("Empty DXF stream")
+
+    upload_id = str(uuid.uuid4())[:12]
+
+    # 2) Write to temp DXF file (Render-safe: /tmp)
+    with tempfile.TemporaryDirectory() as td:
+        td_path = Path(td)
+        dxf_path = td_path / f"upload_{upload_id}.dxf"
+
+        # keep original text, avoid encoding crashes
+        dxf_path.write_text(dxf_text, encoding="utf-8", errors="replace")
+
+        # 3) Run your existing DXF pipeline (returns rows list[dict])
+        rows = process_one_dxf(
+            dxf_path=dxf_path,
+            out_dir=td_path,
+            target_units="ft",
+            include_xrefs=False,
+            layer_metrics=True,
+            aggregate_inserts=True,
+            unitless_units="m",
+        )
+
+        # 4) Push to Sheets using the SAME logic as CLI
+        detail_rows, layer_rows = split_rows_for_upload(rows)
+
+        # Detail tab
+        if detail_rows and GS_WEBAPP_URL and GSHEET_ID and GSHEET_TAB:
+            push_rows_to_webapp(
+                detail_rows,
+                webapp_url=GS_WEBAPP_URL,
+                spreadsheet_id=GSHEET_ID,
+                tab=GSHEET_TAB,
+                mode=GSHEET_MODE,
+                summary_tab="",
+                batch_rows=300,
+                valign_middle=True,
+                sparse_anchor="last",
+                drive_folder_id=GS_DRIVE_FOLDER_ID,
+            )
+
+        # ByLayer tab (auto name if blank)
+        summary_tab_name = GSHEET_SUMMARY_TAB.strip() if GSHEET_SUMMARY_TAB.strip() else (GSHEET_TAB + "_ByLayer")
+        if layer_rows and GS_WEBAPP_URL and GSHEET_ID and summary_tab_name:
+            push_rows_to_webapp(
+                layer_rows,
+                webapp_url=GS_WEBAPP_URL,
+                spreadsheet_id=GSHEET_ID,
+                tab=summary_tab_name,
+                mode="replace" if GSHEET_MODE == "replace" else "append",
+                summary_tab="",
+                batch_rows=300,
+                valign_middle=True,
+                sparse_anchor="last",
+                drive_folder_id=GS_DRIVE_FOLDER_ID,
+            )
+
+        # 5) Return summary for frontend
+        return {
+            "ok": True,
+            "upload_id": upload_id,
+            "gsheet_id": GSHEET_ID,
+            "sheet_tab": GSHEET_TAB,
+            "sheet_summary_tab": summary_tab_name,
+            "total_rows": len(rows),
+            "detail_rows": len(detail_rows),
+            "layer_rows": len(layer_rows),
+        }
+
+
+
 def main():
     ap = argparse.ArgumentParser(description="DXF → CSV + Sheets upload (previews + zones + category1 + description).")
     ap.add_argument("--dxf"); ap.add_argument("--name")
