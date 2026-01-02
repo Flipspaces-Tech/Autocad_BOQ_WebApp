@@ -35,7 +35,7 @@ OUT_ROOT   = r"C:\Users\admin\Documents\AUTOCAD_WEBAPP\EXPORTS"
 
 GS_WEBAPP_URL       = "https://script.google.com/macros/s/AKfycbwTTg9SzLo70ICTbpr2a5zNw84CG6kylNulVONenq4BADQIuCq7GuJqtDq7H_QfV0pe/exec"
 GSHEET_ID           = "12AsC0b7_U4dxhfxEZwtrwOXXALAnEEkQm5N8tg_RByM"
-GSHEET_TAB          = "UNIQUEness"            # Detail tab
+GSHEET_TAB          = "BOQ_AUTO"            # Detail tab
 GSHEET_SUMMARY_TAB  = ""                     # blank → auto "<GSHEET_TAB>_ByLayer"
 GSHEET_MODE         = "replace"
 GS_DRIVE_FOLDER_ID  = ""
