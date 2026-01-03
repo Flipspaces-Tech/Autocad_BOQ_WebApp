@@ -43,6 +43,9 @@ GS_DRIVE_FOLDER_ID  = ""
 # Which attribute tags we consider as "description"
 DESC_TAGS = {"DESC", "DESCRIPTION", "NOTE", "REM", "REMARK", "INFO", "META_DESC"}
 
+ENABLE_PREVIEWS = False
+
+
 # ===== Headers =====
 CSV_HEADERS = [
     "entity_type","category","zone","category1",
@@ -1134,7 +1137,8 @@ def push_rows_to_webapp(rows: list[dict], webapp_url: str, spreadsheet_id: str,
                 "",                        # Preview
                 r.get("remarks",""),
             ] for r in chunk]
-            images     = [r.get("preview_b64","") for r in chunk]
+            images     = [r.get("preview_b64","") for r in chunk] if ENABLE_PREVIEWS else [""] * len(chunk)
+
             bg_colors  = [""] * len(chunk)
             color_only = False
 
@@ -1195,7 +1199,8 @@ def process_one_dxf(dxf_path: Path, out_dir: Path | None,
     logging.info("DWG $INSUNITS: %s", doc.header.get("$INSUNITS", "n/a"))
     scale_to_m = units_scale_to_meters(doc, unitless_units=unitless_units)
 
-    preview_cache = _build_preview_cache(msp)
+    preview_cache = _build_preview_cache(msp) if ENABLE_PREVIEWS else {}
+
     zones = _collect_planner_zones(msp)
 
     rows: list[dict] = []
