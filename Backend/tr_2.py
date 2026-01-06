@@ -22,6 +22,8 @@ import ezdxf
 from ezdxf import colors as ezcolors
 from ezdxf import recover
 import json
+import uuid
+
 
 
 os.environ.setdefault("MPLCONFIGDIR", "/tmp/matplotlib")
