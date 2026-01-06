@@ -125,7 +125,7 @@ export default function BoqUploadPage() {
           <div className="boq-pill">Vizdom · AutoCAD BOQ</div>
           <h1>BOQ Generator</h1>
           <p>
-            Upload an <strong>ASCII DXF</strong> file and get an auto-generated
+            Upload an <strong>ASCII DWG</strong> file and get an auto-generated
             BOQ in Google Sheets.
           </p>
         </div>
@@ -156,7 +156,7 @@ export default function BoqUploadPage() {
               <>
                 <div className="boq-file-name">{file.name}</div>
                 <div className="boq-file-meta">
-                  {(file.size / (1024 * 1024)).toFixed(2)} MB · DXF
+                  {(file.size / (1024 * 1024)).toFixed(2)} MB · DWG
                 </div>
                 <button
                   type="button"
@@ -183,7 +183,7 @@ export default function BoqUploadPage() {
                     browse from your computer
                   </button>
                 </p>
-                <p className="boq-dropzone-hint">Supported: ASCII .dxf</p>
+                <p className="boq-dropzone-hint">Supported: ASCII .dwg</p>
               </>
             )}
           </div>

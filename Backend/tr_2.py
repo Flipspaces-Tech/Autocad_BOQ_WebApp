@@ -39,7 +39,7 @@ OUT_ROOT   = r"C:\Users\admin\Documents\AUTOCAD_WEBAPP\EXPORTS"
 
 GS_WEBAPP_URL       = "https://script.google.com/macros/s/AKfycbwTTg9SzLo70ICTbpr2a5zNw84CG6kylNulVONenq4BADQIuCq7GuJqtDq7H_QfV0pe/exec"
 GSHEET_ID           = "12AsC0b7_U4dxhfxEZwtrwOXXALAnEEkQm5N8tg_RByM"
-GSHEET_TAB          = "BOQ_AUTO"            # Detail tab
+GSHEET_TAB          = "TEST"            # Detail tab
 GSHEET_SUMMARY_TAB  = ""                     # blank → auto "<GSHEET_TAB>_ByLayer"
 GSHEET_MODE         = "replace"
 GS_DRIVE_FOLDER_ID  = ""
@@ -60,13 +60,14 @@ CSV_HEADERS = [
 ]
 
 DETAIL_HEADERS = [
-    # NOTE: Apps Script will drop entity_type/category, then reorder + aggregate
     "entity_type","category","zone","category1",
     "BOQ name","qty_type","qty_value",
     "length (ft)","width (ft)",
     "Description",
-    "Preview","remarks"
+    "Preview",
+    "remarks"   # ✅ add this (because you send it in data_rows)
 ]
+
 
 LAYER_HEADERS = [
     "category",
@@ -1531,8 +1532,17 @@ def process_cad_from_upload(filename: str, file_bytes: bytes) -> dict:
                 drive_folder_id=GS_DRIVE_FOLDER_ID,
             )
 
+        sheet_url = f"https://docs.google.com/spreadsheets/d/{GSHEET_ID}"
+
         return {
+            # ✅ what React expects
             "ok": True,
+            "message": "✅ BOQ generated successfully.",
+            "sheetUrl": sheet_url,
+            "sheetName": GSHEET_TAB,
+            "uploadId": upload_id,
+
+            # ✅ keep your existing debug/telemetry fields (optional)
             "upload_id": upload_id,
             "input_ext": ext,
             "gsheet_id": GSHEET_ID,
@@ -1542,6 +1552,7 @@ def process_cad_from_upload(filename: str, file_bytes: bytes) -> dict:
             "detail_rows": len(detail_rows),
             "layer_rows": len(layer_rows),
         }
+
 
 
 
