@@ -21,8 +21,6 @@ import requests
 import ezdxf
 from ezdxf import colors as ezcolors
 from ezdxf import recover
-import json
-
 
 os.environ.setdefault("MPLCONFIGDIR", "/tmp/matplotlib")
 os.makedirs(os.environ["MPLCONFIGDIR"], exist_ok=True)
@@ -1275,92 +1273,6 @@ def process_one_dxf(dxf_path: Path, out_dir: Path | None,
     return rows
 
 
-
-CLOUDCONVERT_API_KEY = os.getenv("CLOUDCONVERT_API_KEY", "").strip()
-CLOUDCONVERT_API_BASE = os.getenv("CLOUDCONVERT_API_BASE", "https://api.cloudconvert.com/v2").strip()
-
-def cloudconvert_dwg_to_dxf_bytes(dwg_path: Path) -> bytes:
-    """
-    Converts a local DWG file to DXF using CloudConvert and returns DXF bytes.
-    Uses: import/upload -> convert -> export/url
-    """
-    if not CLOUDCONVERT_API_KEY:
-        raise RuntimeError("Missing CLOUDCONVERT_API_KEY in environment")
-
-    headers = {"Authorization": f"Bearer {CLOUDCONVERT_API_KEY}"}
-    sess = requests.Session()
-
-    # 1) Create job
-    job_payload = {
-        "tasks": {
-            "import-1": {"operation": "import/upload"},
-            "convert-1": {
-                "operation": "convert",
-                "input": "import-1",
-                "input_format": "dwg",
-                "output_format": "dxf",
-            },
-            "export-1": {"operation": "export/url", "input": "convert-1"},
-        }
-    }
-
-    r = sess.post(f"{CLOUDCONVERT_API_BASE}/jobs", json=job_payload, headers=headers, timeout=60)
-    r.raise_for_status()
-    job = r.json()["data"]
-    job_id = job["id"]
-
-    # 2) Upload file to the signed URL
-    import_task = next(t for t in job["tasks"] if t["name"] == "import-1")
-    form = import_task["result"]["form"]
-    upload_url = form["url"]
-    params = form["parameters"]
-
-    with dwg_path.open("rb") as f:
-        up = sess.post(
-            upload_url,
-            data=params,
-            files={"file": (dwg_path.name, f)},
-            timeout=300,
-        )
-    up.raise_for_status()
-
-    # 3) Poll until finished
-    while True:
-        j = sess.get(f"{CLOUDCONVERT_API_BASE}/jobs/{job_id}", headers=headers, timeout=60)
-        j.raise_for_status()
-        data = j.json()["data"]
-        status = data.get("status")
-
-        if status == "finished":
-            export_task = next(t for t in data["tasks"] if t["name"] == "export-1")
-            file_url = export_task["result"]["files"][0]["url"]
-
-            out = sess.get(file_url, timeout=300)
-            out.raise_for_status()
-            return out.content
-
-        if status == "error":
-            # Helpful debugging
-            raise RuntimeError("CloudConvert job failed: " + json.dumps(data, indent=2)[:5000])
-
-        time.sleep(1.5)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # =========================
 # FastAPI/Render entrypoint
 # =========================
@@ -1451,97 +1363,6 @@ def process_doc_from_stream(stream) -> dict:
             "detail_rows": len(detail_rows),
             "layer_rows": len(layer_rows),
         }
-
-
-def process_cad_from_upload(filename: str, file_bytes: bytes) -> dict:
-    """
-    Upload handler:
-      - if DWG: convert to DXF using CloudConvert
-      - if DXF: use directly
-      - then run your existing pipeline and Sheets push
-    """
-    if not filename:
-        raise ValueError("Missing filename")
-
-    ext = Path(filename).suffix.lower().strip()
-    if ext not in (".dwg", ".dxf"):
-        raise ValueError(f"Unsupported file type: {ext}. Upload .dwg or .dxf")
-
-    if not file_bytes or len(file_bytes) < 10:
-        raise ValueError("Empty upload")
-
-    upload_id = str(uuid.uuid4())[:12]
-
-    with tempfile.TemporaryDirectory() as td:
-        td_path = Path(td)
-
-        in_path = td_path / f"upload_{upload_id}{ext}"
-        in_path.write_bytes(file_bytes)
-
-        # Convert if DWG
-        if ext == ".dwg":
-            dxf_bytes = cloudconvert_dwg_to_dxf_bytes(in_path)
-            dxf_path = td_path / f"converted_{upload_id}.dxf"
-            dxf_path.write_bytes(dxf_bytes)
-        else:
-            dxf_path = in_path
-
-        # Run your existing DXF pipeline
-        rows = process_one_dxf(
-            dxf_path=dxf_path,
-            out_dir=td_path,
-            target_units="ft",
-            include_xrefs=False,
-            layer_metrics=True,
-            aggregate_inserts=True,
-            unitless_units="m",
-        )
-
-        # Push to Sheets (same as your process_doc_from_stream)
-        detail_rows, layer_rows = split_rows_for_upload(rows)
-
-        if detail_rows and GS_WEBAPP_URL and GSHEET_ID and GSHEET_TAB:
-            push_rows_to_webapp(
-                detail_rows,
-                webapp_url=GS_WEBAPP_URL,
-                spreadsheet_id=GSHEET_ID,
-                tab=GSHEET_TAB,
-                mode=GSHEET_MODE,
-                summary_tab="",
-                batch_rows=300,
-                valign_middle=True,
-                sparse_anchor="last",
-                drive_folder_id=GS_DRIVE_FOLDER_ID,
-            )
-
-        summary_tab_name = GSHEET_SUMMARY_TAB.strip() if GSHEET_SUMMARY_TAB.strip() else (GSHEET_TAB + "_ByLayer")
-        if layer_rows and GS_WEBAPP_URL and GSHEET_ID and summary_tab_name:
-            push_rows_to_webapp(
-                layer_rows,
-                webapp_url=GS_WEBAPP_URL,
-                spreadsheet_id=GSHEET_ID,
-                tab=summary_tab_name,
-                mode="replace" if GSHEET_MODE == "replace" else "append",
-                summary_tab="",
-                batch_rows=300,
-                valign_middle=True,
-                sparse_anchor="last",
-                drive_folder_id=GS_DRIVE_FOLDER_ID,
-            )
-
-        return {
-            "ok": True,
-            "upload_id": upload_id,
-            "input_ext": ext,
-            "gsheet_id": GSHEET_ID,
-            "sheet_tab": GSHEET_TAB,
-            "sheet_summary_tab": summary_tab_name,
-            "total_rows": len(rows),
-            "detail_rows": len(detail_rows),
-            "layer_rows": len(layer_rows),
-        }
-
-
 
 
 

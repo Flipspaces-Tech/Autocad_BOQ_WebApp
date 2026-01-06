@@ -25,11 +25,15 @@ export default function BoqUploadPage() {
   const handleFileSelect = (f) => {
     if (!f) return;
 
-    // DXF only, because backend is DXF-only
-    if (!f.name.toLowerCase().endsWith(".dxf")) {
-      setStatus("❌ Please upload an ASCII DXF file (.dxf).");
+    const name = (f.name || "").toLowerCase();
+    const isDxf = name.endsWith(".dxf");
+    const isDwg = name.endsWith(".dwg");
+
+    if (!isDxf && !isDwg) {
+      setStatus("❌ Please upload a .dwg or .dxf file.");
       return;
     }
+
 
     setFile(f);
     resetState();
@@ -82,7 +86,8 @@ export default function BoqUploadPage() {
       const formData = new FormData();
       formData.append("file", file); // must be "file" to match FastAPI
 
-      const url = `${BACKEND_URL}/upload`;
+      const url = `${BACKEND_URL}/process-cad`;
+
       console.log("Calling backend:", url);
 
       const res = await fetch(url, {
@@ -140,7 +145,8 @@ export default function BoqUploadPage() {
               type="file"
               ref={inputRef}
               style={{ display: "none" }}
-              accept=".dxf"
+              accept=".dwg,.dxf"
+
               onChange={(e) => handleFileSelect(e.target.files[0])}
             />
 

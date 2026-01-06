@@ -7,8 +7,15 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+
+from tr_2 import process_cad_from_upload  # import from wherever you placed it
+
 # 👇 import your DXF → Sheets pipeline function from tr_2.py
 from tr_2 import process_doc_from_stream
+
+from dotenv import load_dotenv
+load_dotenv()
+
 
 app = FastAPI(title="AutoCAD BOQ Web API")
 
@@ -20,6 +27,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# app = FastAPI()
+
+@app.post("/process-cad")
+async def process_cad(file: UploadFile = File(...)):
+    try:
+        data = await file.read()
+        return process_cad_from_upload(file.filename, data)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 async def _run_pipeline_from_upload(file: UploadFile) -> Dict[str, Any]:
@@ -90,18 +107,22 @@ async def _run_pipeline_from_upload(file: UploadFile) -> Dict[str, Any]:
   }
 
 
-# === Main endpoint your React app calls ===
 @app.post("/upload")
 async def upload_drawing(file: UploadFile = File(...)):
-  data = await _run_pipeline_from_upload(file)
-  return JSONResponse(data)
+  try:
+    data = await file.read()
+    return JSONResponse(process_cad_from_upload(file.filename or "upload.dwg", data))
+  except Exception as e:
+    raise HTTPException(status_code=400, detail=str(e))
 
-
-# Backwards-compatible alias if needed
 @app.post("/process")
 async def process_drawing(file: UploadFile = File(...)):
-  data = await _run_pipeline_from_upload(file)
-  return JSONResponse(data)
+  try:
+    data = await file.read()
+    return JSONResponse(process_cad_from_upload(file.filename or "upload.dwg", data))
+  except Exception as e:
+    raise HTTPException(status_code=400, detail=str(e))
+
 
 
 # Simple health check
