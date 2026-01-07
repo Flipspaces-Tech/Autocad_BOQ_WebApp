@@ -24,6 +24,13 @@ from ezdxf import recover
 import json
 import uuid
 
+import numpy as np
+import cv2
+
+from ezdxf.addons.drawing import RenderContext, Frontend
+from ezdxf.addons.drawing.matplotlib import MatplotlibBackend
+
+
 
 
 os.environ.setdefault("MPLCONFIGDIR", "/tmp/matplotlib")
@@ -48,6 +55,40 @@ GS_DRIVE_FOLDER_ID  = ""
 DESC_TAGS = {"DESC", "DESCRIPTION", "NOTE", "REM", "REMARK", "INFO", "META_DESC"}
 
 ENABLE_PREVIEWS = True
+
+# =========================
+# ONE.PY PREVIEW ENGINE
+# (transparent N×N, trimmed, black/white strokes)
+# =========================
+
+# --- preview config (match one.py defaults) ---
+PREVIEW_TARGET_SIZE = 128          # final icon size (N×N)
+PREVIEW_DPI         = 240
+PREVIEW_PAD_PCT     = 0.04
+PREVIEW_MARGIN_PCT  = 0.10
+PREVIEW_SUPERSAMPLE = 2
+
+PREVIEW_SKIP_LAYERS    = {"DEFPOINTS","DIM","DIMENSIONS","ANNOTATION","TEXT","NOTES"}
+PREVIEW_SKIP_DXF_TYPES = {"TEXT","MTEXT","DIMENSION"}
+
+PREVIEW_INK_THRESHOLD     = 100
+PREVIEW_THICKEN_PX        = 2
+PREVIEW_THICKEN_ITER      = 2
+PREVIEW_CLOSE_GAPS_KSIZE  = 1
+
+PREVIEW_EDGE_BG_THRESH    = 250
+PREVIEW_MIN_VISIBLE_ALPHA = 8
+
+# stroke: "black" or "white"
+PREVIEW_STROKE = os.getenv("PREVIEW_STROKE", "black").strip().lower()
+if PREVIEW_STROKE not in ("black","white"):
+    PREVIEW_STROKE = "black"
+
+
+
+
+
+
 
 
 # ===== Headers =====
@@ -484,163 +525,398 @@ def make_row(entity_type, qty_type, qty_value,
     }
 
 # ===== Previews (Detail) =====
-def _render_preview_from_insert(ins, size_px: int = 192, pad_ratio: float = 0.06) -> str:
-    fig = None
-    buf = None
+# def _render_preview_from_insert(ins, size_px: int = 192, pad_ratio: float = 0.06) -> str:
+#     fig = None
+#     buf = None
+#     try:
+#         polylines: list[list[tuple[float, float]]] = []
+#         minx = miny = float("inf")
+#         maxx = maxy = float("-inf")
+
+#         for ve in ins.virtual_entities():
+#             et = ve.dxftype()
+#             pts: list[tuple[float, float]] = []
+
+#             if et == "LINE":
+#                 pts = [
+#                     (float(ve.dxf.start.x), float(ve.dxf.start.y)),
+#                     (float(ve.dxf.end.x),   float(ve.dxf.end.y)),
+#                 ]
+
+#             elif et == "LWPOLYLINE":
+#                 verts = list(ve)
+#                 n = len(verts)
+#                 if n:
+#                     closed = bool(getattr(ve, "closed", False))
+#                     for i in range(n if closed else n - 1):
+#                         j = (i + 1) % n
+#                         try:
+#                             b = float(verts[i][4])
+#                         except Exception:
+#                             b = 0.0
+#                         seg = _bulge_arc_points(
+#                             (float(verts[i][0]), float(verts[i][1])),
+#                             (float(verts[j][0]), float(verts[j][1])),
+#                             b,
+#                         )
+#                         if not pts:
+#                             pts.extend(seg)
+#                         else:
+#                             pts.extend(seg if pts[-1] != seg[0] else seg[1:])
+#                     if closed and pts and pts[0] != pts[-1]:
+#                         pts.append(pts[0])
+
+#             elif et == "POLYLINE":
+#                 vs = list(ve.vertices())
+#                 if vs:
+#                     coords = []
+#                     for v in vs:
+#                         loc = getattr(v.dxf, "location", None)
+#                         if loc is not None:
+#                             coords.append((float(loc.x), float(loc.y)))
+#                         else:
+#                             coords.append((float(getattr(v.dxf, "x", 0.0)),
+#                                            float(getattr(v.dxf, "y", 0.0))))
+
+#                     closed = bool(getattr(ve, "is_closed", getattr(ve, "closed", False)))
+#                     n = len(coords)
+#                     tmp = []
+#                     for i in range(n - (0 if closed else 1)):
+#                         j = (i + 1) % n
+#                         try:
+#                             b = float(vs[i].dxf.bulge)
+#                         except Exception:
+#                             b = 0.0
+#                         seg = _bulge_arc_points(coords[i], coords[j], b)
+#                         if not tmp:
+#                             tmp.extend(seg)
+#                         else:
+#                             tmp.extend(seg if tmp[-1] != seg[0] else seg[1:])
+#                     if closed and tmp and tmp[0] != tmp[-1]:
+#                         tmp.append(tmp[0])
+#                     pts = tmp
+
+#             elif et == "CIRCLE":
+#                 cx, cy = float(ve.dxf.center.x), float(ve.dxf.center.y)
+#                 r = float(ve.dxf.radius)
+#                 if r > 0:
+#                     pts = list(_sample_arc_pts(cx, cy, r, None, None))
+#                     if pts and pts[0] != pts[-1]:
+#                         pts.append(pts[0])
+
+#             elif et == "ARC":
+#                 cx, cy = float(ve.dxf.center.x), float(ve.dxf.center.y)
+#                 r = float(ve.dxf.radius)
+#                 sa, ea = float(ve.dxf.start_angle), float(ve.dxf.end_angle)
+#                 if r > 0:
+#                     pts = list(_sample_arc_pts(cx, cy, r, sa, ea))
+
+#             if len(pts) >= 2 and any(pts[i] != pts[i + 1] for i in range(len(pts) - 1)):
+#                 polylines.append(pts)
+#                 for (x, y) in pts:
+#                     minx = min(minx, x); miny = min(miny, y)
+#                     maxx = max(maxx, x); maxy = max(maxy, y)
+
+#         if minx == float("inf") or not polylines:
+#             return ""
+
+#         w = max(maxx - minx, 1.0)
+#         h = max(maxy - miny, 1.0)
+#         size = max(w, h)
+#         pad = max(size * pad_ratio, 0.5)
+
+#         cx = (minx + maxx) * 0.5
+#         cy = (miny + maxy) * 0.5
+#         half = size * 0.5 + pad
+#         xmin, xmax = cx - half, cx + half
+#         ymin, ymax = cy - half, cy + half
+
+#         fig = plt.figure(figsize=(size_px / 100, size_px / 100), dpi=100)
+#         ax = fig.add_subplot(111)
+#         ax.axis("off")
+#         ax.set_aspect("equal")
+
+#         for pts in polylines:
+#             xs = [p[0] for p in pts]
+#             ys = [p[1] for p in pts]
+#             ax.plot(xs, ys, linewidth=1.25)
+
+#         ax.set_xlim([xmin, xmax])
+#         ax.set_ylim([ymin, ymax])
+
+#         buf = io.BytesIO()
+#         plt.subplots_adjust(0, 0, 1, 1)
+#         fig.savefig(buf, format="png", transparent=True, bbox_inches="tight", pad_inches=0)
+#         return base64.b64encode(buf.getvalue()).decode("ascii")
+
+#     except Exception as ex:
+#         logging.exception("Preview render failed for INSERT=%s : %s",
+#                           getattr(getattr(ins, "dxf", None), "name", "<?>"), ex)
+#         return ""
+#     finally:
+#         try:
+#             if fig is not None:
+#                 plt.close(fig)
+#         except Exception:
+#             pass
+#         try:
+#             if buf is not None:
+#                 buf.close()
+#         except Exception:
+#             pass
+
+
+def _preview_build_frontend(doc, ax):
+    ctx     = RenderContext(doc)
+    backend = MatplotlibBackend(ax)
     try:
-        polylines: list[list[tuple[float, float]]] = []
-        minx = miny = float("inf")
-        maxx = maxy = float("-inf")
+        from ezdxf.addons.drawing.config import Configuration
+        cfg = Configuration.defaults()
+        return Frontend(ctx, backend, cfg)
+    except Exception:
+        return Frontend(ctx, backend)
 
-        for ve in ins.virtual_entities():
-            et = ve.dxftype()
-            pts: list[tuple[float, float]] = []
 
-            if et == "LINE":
-                pts = [
-                    (float(ve.dxf.start.x), float(ve.dxf.start.y)),
-                    (float(ve.dxf.end.x),   float(ve.dxf.end.y)),
-                ]
+def _preview_render_entities_png_bytes(doc, entities, dpi=PREVIEW_DPI, pad_pct=PREVIEW_PAD_PCT) -> bytes:
+    """
+    Renders given DXF entities to a transparent PNG (bytes) using ezdxf drawing frontend.
+    """
+    import io
+    fig = plt.figure()
+    ax  = fig.add_axes([0,0,1,1])
+    ax.set_facecolor((0,0,0,0))
+    fig.patch.set_alpha(0.0)
+    fig.set_dpi(dpi)
 
-            elif et == "LWPOLYLINE":
-                verts = list(ve)
-                n = len(verts)
-                if n:
-                    closed = bool(getattr(ve, "closed", False))
-                    for i in range(n if closed else n - 1):
-                        j = (i + 1) % n
-                        try:
-                            b = float(verts[i][4])
-                        except Exception:
-                            b = 0.0
-                        seg = _bulge_arc_points(
-                            (float(verts[i][0]), float(verts[i][1])),
-                            (float(verts[j][0]), float(verts[j][1])),
-                            b,
-                        )
-                        if not pts:
-                            pts.extend(seg)
-                        else:
-                            pts.extend(seg if pts[-1] != seg[0] else seg[1:])
-                    if closed and pts and pts[0] != pts[-1]:
-                        pts.append(pts[0])
+    frontend = _preview_build_frontend(doc, ax)
+    msp = doc.modelspace()
 
-            elif et == "POLYLINE":
-                vs = list(ve.vertices())
-                if vs:
-                    coords = []
-                    for v in vs:
-                        loc = getattr(v.dxf, "location", None)
-                        if loc is not None:
-                            coords.append((float(loc.x), float(loc.y)))
-                        else:
-                            coords.append((float(getattr(v.dxf, "x", 0.0)),
-                                           float(getattr(v.dxf, "y", 0.0))))
+    for e in entities:
+        if hasattr(e, "dxf") and hasattr(e.dxf, "layer"):
+            if e.dxf.layer in PREVIEW_SKIP_LAYERS:
+                continue
+        if hasattr(e, "dxftype") and e.dxftype() in PREVIEW_SKIP_DXF_TYPES:
+            continue
+        try:
+            frontend.draw_entity(e, msp)
+        except Exception:
+            pass
 
-                    closed = bool(getattr(ve, "is_closed", getattr(ve, "closed", False)))
-                    n = len(coords)
-                    tmp = []
-                    for i in range(n - (0 if closed else 1)):
-                        j = (i + 1) % n
-                        try:
-                            b = float(vs[i].dxf.bulge)
-                        except Exception:
-                            b = 0.0
-                        seg = _bulge_arc_points(coords[i], coords[j], b)
-                        if not tmp:
-                            tmp.extend(seg)
-                        else:
-                            tmp.extend(seg if tmp[-1] != seg[0] else seg[1:])
-                    if closed and tmp and tmp[0] != tmp[-1]:
-                        tmp.append(tmp[0])
-                    pts = tmp
+    ax.set_aspect("equal", "box")
+    ax.autoscale(True, "both", tight=True)
 
-            elif et == "CIRCLE":
-                cx, cy = float(ve.dxf.center.x), float(ve.dxf.center.y)
-                r = float(ve.dxf.radius)
-                if r > 0:
-                    pts = list(_sample_arc_pts(cx, cy, r, None, None))
-                    if pts and pts[0] != pts[-1]:
-                        pts.append(pts[0])
+    x0, x1 = ax.get_xlim()
+    y0, y1 = ax.get_ylim()
+    w = max(x1 - x0, 1e-6)
+    h = max(y1 - y0, 1e-6)
+    ax.set_xlim(x0 - w*pad_pct, x1 + w*pad_pct)
+    ax.set_ylim(y0 - h*pad_pct, y1 + h*pad_pct)
 
-            elif et == "ARC":
-                cx, cy = float(ve.dxf.center.x), float(ve.dxf.center.y)
-                r = float(ve.dxf.radius)
-                sa, ea = float(ve.dxf.start_angle), float(ve.dxf.end_angle)
-                if r > 0:
-                    pts = list(_sample_arc_pts(cx, cy, r, sa, ea))
+    ax.axis("off")
 
-            if len(pts) >= 2 and any(pts[i] != pts[i + 1] for i in range(len(pts) - 1)):
-                polylines.append(pts)
-                for (x, y) in pts:
-                    minx = min(minx, x); miny = min(miny, y)
-                    maxx = max(maxx, x); maxy = max(maxy, y)
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", transparent=True, bbox_inches="tight", pad_inches=0)
+    plt.close(fig)
+    return buf.getvalue()
 
-        if minx == float("inf") or not polylines:
+
+def _ensure_rgba(img):
+    if img is None:
+        return None
+    if img.ndim == 2:
+        img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGRA)
+    elif img.ndim == 3:
+        c = img.shape[2]
+        if c == 4:
+            pass
+        elif c == 3:
+            img = np.dstack([img, np.full(img.shape[:2], 255, np.uint8)])
+        else:
+            img = np.dstack([img[..., 0:3], np.full(img.shape[:2], 255, np.uint8)])
+    return np.ascontiguousarray(img, np.uint8)
+
+
+def _as_single_channel(mask):
+    if mask is None:
+        return None
+    if mask.ndim == 3 and mask.shape[2] == 1:
+        mask = mask[..., 0]
+    elif mask.ndim == 3 and mask.shape[2] == 3:
+        mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
+    if mask.dtype != np.uint8:
+        mask = (mask > 0).astype(np.uint8)
+    return np.ascontiguousarray(mask)
+
+
+def _add_transparent_margin_rgba(img_rgba, margin):
+    img_rgba = _ensure_rgba(img_rgba)
+    if margin <= 0:
+        return img_rgba
+    h, w = img_rgba.shape[:2]
+    canvas = np.zeros((h + 2*margin, w + 2*margin, 4), np.uint8)
+    canvas[margin:margin+h, margin:margin+w] = img_rgba
+    return canvas
+
+
+def _resize_to_square_rgba(img_rgba, size: int):
+    img_rgba = _ensure_rgba(img_rgba)
+    h, w = img_rgba.shape[:2]
+    if h == 0 or w == 0:
+        return np.zeros((size, size, 4), np.uint8)
+
+    target_big = size * PREVIEW_SUPERSAMPLE
+    scale = min(target_big / w, target_big / h)
+    new_w = int(round(w * scale))
+    new_h = int(round(h * scale))
+
+    big = cv2.resize(img_rgba, (new_w, new_h), interpolation=cv2.INTER_NEAREST)
+    big = _ensure_rgba(big)
+
+    canvas = np.zeros((target_big, target_big, 4), np.uint8)
+    x0 = (target_big - new_w) // 2
+    y0 = (target_big - new_h) // 2
+    canvas[y0:y0+new_h, x0:x0+new_w] = big
+
+    final = cv2.resize(canvas, (size, size), interpolation=cv2.INTER_AREA)
+    return final
+
+
+def _dilate_mask(mask, ksize, iters):
+    m = _as_single_channel(mask)
+    if m is None or ksize <= 0 or iters <= 0:
+        return m
+    k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (ksize, ksize))
+    out = cv2.dilate(m, k, iterations=iters)
+    return _as_single_channel(out)
+
+
+def _close_small_gaps(mask, ksize=2):
+    m = _as_single_channel(mask)
+    if m is None or ksize <= 0:
+        return m
+    k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (ksize, ksize))
+    out = cv2.morphologyEx(m, cv2.MORPH_CLOSE, k, iterations=1)
+    return _as_single_channel(out)
+
+
+def _labels_touching_border(labels):
+    h, w = labels.shape
+    return set(np.unique(np.r_[labels[0, :], labels[-1, :], labels[:, 0], labels[:, -1]]))
+
+
+def _onepy_trim_to_icon_png_bytes(png_bytes: bytes, target_size: int, stroke: str) -> bytes:
+    """
+    Takes a transparent PNG (bytes), trims, masks, thickens and returns icon PNG bytes (transparent).
+    """
+    arr = np.frombuffer(png_bytes, dtype=np.uint8)
+    img = cv2.imdecode(arr, cv2.IMREAD_UNCHANGED)
+    img = _ensure_rgba(img)
+    if img is None:
+        return b""
+
+    rgb = img[..., :3]
+    a   = img[..., 3]
+    gray = cv2.cvtColor(rgb, cv2.COLOR_BGR2GRAY)
+
+    non_white = (gray < 250).astype(np.uint8) * 255
+    trim_mask = cv2.bitwise_or((a > 0).astype(np.uint8) * 255, non_white)
+
+    coords = cv2.findNonZero(trim_mask)
+    if coords is not None:
+        x, y, w, h = cv2.boundingRect(coords)
+        if w > 0 and h > 0:
+            img = _ensure_rgba(img[y:y+h, x:x+w])
+
+    size_max = max(img.shape[0], img.shape[1])
+    margin = int(round(size_max * PREVIEW_MARGIN_PCT))
+    img = _add_transparent_margin_rgba(img, margin)
+
+    rgb = img[..., :3]
+    a   = img[..., 3]
+    gray = cv2.cvtColor(rgb, cv2.COLOR_BGR2GRAY)
+
+    bg_candidates = _as_single_channel(((gray >= PREVIEW_EDGE_BG_THRESH) | (a <= PREVIEW_MIN_VISIBLE_ALPHA)).astype(np.uint8))
+    _, labels = cv2.connectedComponents(bg_candidates, 8)
+    border_lbls = _labels_touching_border(labels)
+    bg_mask = np.isin(labels, list(border_lbls)).astype(np.uint8) * 255
+
+    ink = ((bg_mask == 0) & ((a >= PREVIEW_MIN_VISIBLE_ALPHA) | (gray < PREVIEW_INK_THRESHOLD))).astype(np.uint8) * 255
+    ink = _close_small_gaps(ink, PREVIEW_CLOSE_GAPS_KSIZE)
+    ink = _dilate_mask(ink, PREVIEW_THICKEN_PX, PREVIEW_THICKEN_ITER)
+
+    h, w = img.shape[:2]
+    out = np.zeros((h, w, 4), np.uint8)
+    mask = _as_single_channel(ink) > 0
+
+    if stroke == "black":
+        out[mask, :3] = 0
+    else:
+        out[mask, :3] = 255
+
+    out[mask, 3] = 255
+
+    out = _resize_to_square_rgba(out, target_size)
+
+    ok, enc = cv2.imencode(".png", out, [int(cv2.IMWRITE_PNG_COMPRESSION), 3])
+    return enc.tobytes() if ok else b""
+
+
+def _render_onepy_preview_base64(doc, ins, target_size=PREVIEW_TARGET_SIZE, stroke=PREVIEW_STROKE) -> str:
+    """
+    Render INSERT using one.py pipeline -> returns base64 PNG string.
+    """
+    try:
+        # Render insert to transparent PNG bytes
+        png0 = _preview_render_entities_png_bytes(doc, [ins], dpi=PREVIEW_DPI, pad_pct=PREVIEW_PAD_PCT)
+
+        # Trim/normalize to icon
+        png1 = _onepy_trim_to_icon_png_bytes(png0, target_size=target_size, stroke=stroke)
+        if not png1:
             return ""
 
-        w = max(maxx - minx, 1.0)
-        h = max(maxy - miny, 1.0)
-        size = max(w, h)
-        pad = max(size * pad_ratio, 0.5)
-
-        cx = (minx + maxx) * 0.5
-        cy = (miny + maxy) * 0.5
-        half = size * 0.5 + pad
-        xmin, xmax = cx - half, cx + half
-        ymin, ymax = cy - half, cy + half
-
-        fig = plt.figure(figsize=(size_px / 100, size_px / 100), dpi=100)
-        ax = fig.add_subplot(111)
-        ax.axis("off")
-        ax.set_aspect("equal")
-
-        for pts in polylines:
-            xs = [p[0] for p in pts]
-            ys = [p[1] for p in pts]
-            ax.plot(xs, ys, linewidth=1.25)
-
-        ax.set_xlim([xmin, xmax])
-        ax.set_ylim([ymin, ymax])
-
-        buf = io.BytesIO()
-        plt.subplots_adjust(0, 0, 1, 1)
-        fig.savefig(buf, format="png", transparent=True, bbox_inches="tight", pad_inches=0)
-        return base64.b64encode(buf.getvalue()).decode("ascii")
-
-    except Exception as ex:
-        logging.exception("Preview render failed for INSERT=%s : %s",
-                          getattr(getattr(ins, "dxf", None), "name", "<?>"), ex)
+        return base64.b64encode(png1).decode("ascii")
+    except Exception:
+        logging.exception("ONE.PY preview render failed for INSERT=%s", getattr(getattr(ins, "dxf", None), "name", "<?>"))
         return ""
-    finally:
-        try:
-            if fig is not None:
-                plt.close(fig)
-        except Exception:
-            pass
-        try:
-            if buf is not None:
-                buf.close()
-        except Exception:
-            pass
+
+
+
+
 
 def _build_preview_cache(msp) -> Dict[str, str]:
+    """
+    Build preview cache for unique INSERT block names using one.py renderer.
+    """
     cache: Dict[str, str] = {}
+    doc = getattr(msp, "doc", None)
+    if doc is None:
+        return cache
+
     for ins in msp.query("INSERT"):
         try:
+            # skip PLANNER zone boxes
+            ly = layer_or_misc(getattr(ins.dxf, "layer", ""))
+            if ly.upper() == "PLANNER":
+                continue
+
             name = (getattr(ins, "effective_name", None)
                     or getattr(ins, "block_name", None)
                     or getattr(ins.dxf, "name", ""))
+
             if not name or name in cache:
                 continue
-            cache[name] = _render_preview_from_insert(ins) or ""
+
+            cache[name] = _render_onepy_preview_base64(doc, ins) or ""
+
         except Exception:
             logging.exception("Preview cache build failed for one INSERT")
+
     try:
         plt.close("all")
     except Exception:
         pass
-    logging.info("Preview cache built for %d unique blocks", len(cache))
+
+    logging.info("ONE.PY preview cache built for %d unique blocks", len(cache))
     return cache
 
 # ===== Colors =====

@@ -18,10 +18,8 @@ from collections import defaultdict
 from ezdxf.addons.drawing import RenderContext, Frontend
 from ezdxf.addons.drawing.matplotlib import MatplotlibBackend
 
-# ====== DEFAULT PATHS (edit if you want zero CLI typing) ======
-DXF_FOLDER = r"C:\Users\admin\Documents\VIZ_AUTOCAD_NEW\DXF"
-OUT_ROOT   = r"C:\Users\admin\Documents\VIZ_AUTOCAD_NEW\EXPORTS"
-# ===============================================================
+DXF_FOLDER = r"C:\Users\admin\Documents\AUTOCAD_WEBAPP\DXF"
+OUT_ROOT   = r"C:\Users\admin\Documents\AUTOCAD_WEBAPP\EXPORTS"
 
 # What to export
 EXPORT_BLOCK_INSTANCES = True
@@ -34,7 +32,7 @@ PAD_PCT        = 0.04
 MARGIN_PCT     = 0.10
 
 OUTPUT_EXT     = ".png"
-TARGET_SIZE    = 256
+TARGET_SIZE    = 128
 
 SKIP_LAYERS    = {"DEFPOINTS","DIM","DIMENSIONS","ANNOTATION","TEXT","NOTES"}
 SKIP_DXF_TYPES = {"TEXT","MTEXT","DIMENSION"}
