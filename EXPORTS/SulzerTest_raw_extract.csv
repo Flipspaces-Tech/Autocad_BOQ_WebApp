@@ -1,0 +1,100 @@
+entity_type,category,zone,category1,BOQ name,qty_type,qty_value,length (ft),width (ft),perimeter,area (ft2),Description,Preview,remarks
+INSERT,CHAIR MB,,chair mb,CHAIR MB2,count,1.00,0.09,0.08,,,,,aggregated 1 inserts
+LAYER_SUMMARY,COLUMN,,,,layer,,6.84,0.03,13.74,0.20,,,CLOSED (rectangle): length/width + perimeter & area
+LAYER_SUMMARY,COLUMN,WORKSTATION AREA 02,,,layer,,0.91,0.04,1.89,0.03,,,CLOSED (rectangle): length/width + perimeter & area
+INSERT,DOOR VISION PANEL,,door vision panel,Door_Fire,count,2.00,0.12,0.12,,,,,aggregated 2 inserts
+LAYER_SUMMARY,FACADE,,,,layer,,6.71,,,,,,OPEN length only
+LAYER_SUMMARY,FLR CARPET,DIRECTOR CABIN 01,,,layer,,0.57,0.39,1.92,0.22,,,CLOSED (rectangle): length/width + perimeter & area
+LAYER_SUMMARY,FLR CARPET,MANAGER CABIN 01,,,layer,,0.39,0.33,1.45,0.13,,,CLOSED (rectangle): length/width + perimeter & area
+LAYER_SUMMARY,FLR CARPET,WORKSTATION AREA 02,,,layer,,5.11,0.34,10.91,1.75,,,CLOSED (rectangle): length/width + perimeter & area
+LAYER_SUMMARY,FLR CARPET,WORKSTATION AREA 03,,,layer,,0.38,0.06,0.89,0.02,,,CLOSED (rectangle): length/width + perimeter & area
+LAYER_SUMMARY,FLR CARPET 1,CUBICLE ZONE 02,,,layer,,1.09,0.20,2.58,0.22,,,CLOSED (rectangle): length/width + perimeter & area
+LAYER_SUMMARY,FLR CARPET 1,DIRECTOR CABIN 02,,,layer,,0.58,0.38,1.93,0.22,,,CLOSED (rectangle): length/width + perimeter & area
+LAYER_SUMMARY,FLR CARPET 1,MANAGER CABIN 02,,,layer,,,,1.56,0.16,,,CLOSED (rectangle): length/width + perimeter & area
+LAYER_SUMMARY,FLR CARPET 1,WORKSTATION AREA 01,,,layer,,1.18,0.81,4.00,0.96,,,CLOSED (rectangle): length/width + perimeter & area
+LAYER_SUMMARY,FLR CARPET 1,WORKSTATION AREA 02,,,layer,,1.03,0.20,2.46,0.21,,,CLOSED (rectangle): length/width + perimeter & area
+LAYER_SUMMARY,FLR CARPET 1,WORKSTATION AREA 03,,,layer,,,,1.86,0.22,,,CLOSED (rectangle): length/width + perimeter & area
+LAYER_SUMMARY,FLR CARPET 2,CUBICLE ZONE 01,,,layer,,2.43,0.18,5.22,0.44,,,CLOSED (rectangle): length/width + perimeter & area
+LAYER_SUMMARY,FLR CARPET 2,WORKSTATION AREA 02,,,layer,,2.06,0.67,5.46,1.38,,,CLOSED (rectangle): length/width + perimeter & area
+LAYER_SUMMARY,FLR CARPET GRASS,CUBICLE ZONE 01,,,layer,,1.05,0.02,2.15,0.02,,,CLOSED (rectangle): length/width + perimeter & area
+LAYER_SUMMARY,FLR CARPET GRASS,CUBICLE ZONE 02,,,layer,,0.49,0.02,1.02,0.01,,,CLOSED (rectangle): length/width + perimeter & area
+LAYER_SUMMARY,FLR CARPET GRASS,MANAGER CABIN 02,,,layer,,0.26,0.04,0.61,0.01,,,CLOSED (rectangle): length/width + perimeter & area
+LAYER_SUMMARY,FLR CARPET GRASS,WORKSTATION AREA 03,,,layer,,0.18,0.02,0.39,0.00,,,CLOSED (rectangle): length/width + perimeter & area
+LAYER_SUMMARY,FLR TILE,,,,layer,,0.84,0.14,1.96,0.12,,,CLOSED (rectangle): length/width + perimeter & area
+LAYER_SUMMARY,FLR TILE,STORE ROOM,,,layer,,0.40,0.27,1.34,0.11,,,CLOSED (rectangle): length/width + perimeter & area
+LAYER_SUMMARY,FLR VITRIFIED  2,FEMALE WASHROOM,,,layer,,0.66,0.21,1.73,0.14,,,CLOSED (rectangle): length/width + perimeter & area
+LAYER_SUMMARY,FLR VITRIFIED  2,MALE WASHROOM,,,layer,,0.56,0.29,1.68,0.16,,,CLOSED (rectangle): length/width + perimeter & area
+LAYER_SUMMARY,PARTITION GYP 75mm,DIRECTOR CABIN 01,,,layer,,0.39,0.01,0.81,0.00,,,CLOSED (rectangle): length/width + perimeter & area
+LAYER_SUMMARY,PARTITION GYP 75mm,DIRECTOR CABIN 02,,,layer,,0.38,0.01,0.79,0.00,,,CLOSED (rectangle): length/width + perimeter & area
+LAYER_SUMMARY,PARTITION GYP 75mm,MANAGER CABIN 01,,,layer,,0.39,0.01,0.81,0.00,,,CLOSED (rectangle): length/width + perimeter & area
+LAYER_SUMMARY,PARTITION GYP 75mm,STORE ROOM,,,layer,,0.56,0.01,1.14,0.01,,,CLOSED (rectangle): length/width + perimeter & area
+LAYER_SUMMARY,PARTITION GYP 75mm,WORKSTATION AREA 02,,,layer,,0.71,0.01,1.44,0.01,,,CLOSED (rectangle): length/width + perimeter & area
+LAYER_SUMMARY,PARTITION GYP 75mm,WORKSTATION AREA 03,,,layer,,0.24,0.01,0.51,0.00,,,CLOSED (rectangle): length/width + perimeter & area
+LAYER_SUMMARY,Partition_Glass,DIRECTOR CABIN 01,,,layer,,0.57,0.01,1.15,0.01,,,CLOSED (rectangle): length/width + perimeter & area
+LAYER_SUMMARY,Partition_Glass,DIRECTOR CABIN 02,,,layer,,0.58,0.01,1.18,0.01,,,CLOSED (rectangle): length/width + perimeter & area
+LAYER_SUMMARY,Partition_Glass,MANAGER CABIN 01,,,layer,,0.33,0.01,0.68,0.00,,,CLOSED (rectangle): length/width + perimeter & area
+LAYER_SUMMARY,Partition_Glass,MANAGER CABIN 02,,,layer,,0.00,,,,,,OPEN length only
+LAYER_SUMMARY,Partition_Glass,MANAGER CABIN 02,,,layer,,0.50,0.01,1.01,0.00,,,CLOSED (rectangle): length/width + perimeter & area
+INSERT,Partition_UPVC,,partition_upvc,PHENOLIC PARTITION,count,2.00,0.16,0.16,,,,,aggregated 2 inserts
+LAYER_SUMMARY,Partition_UPVC,MALE WASHROOM,,,layer,,0.20,0.00,0.41,0.00,,,CLOSED (rectangle): length/width + perimeter & area
+LAYER_SUMMARY,PASSAGE,WORKSTATION AREA 02,,,layer,,8.17,0.19,16.74,1.58,,,CLOSED (rectangle): length/width + perimeter & area
+INSERT,PLANNER,CUBICLE ZONE 01,chair mb,CHAIR MB2,count,12.00,16.48,0.08,,,,,aggregated 12 inserts
+INSERT,PLANNER,CUBICLE ZONE 01,workstation - l shaped with aluminium partition,WORKSTAION L SHAPE 5FT,count,4.00,0.20,0.20,,,,,aggregated 4 inserts
+INSERT,PLANNER,CUBICLE ZONE 02,chair mb,CHAIR MB2,count,6.00,0.09,0.08,,,,,aggregated 6 inserts
+INSERT,PLANNER,CUBICLE ZONE 02,workstation - l shaped with aluminium partition,WORKSTAION L SHAPE 5FT,count,2.00,0.20,0.20,,,,,aggregated 2 inserts
+INSERT,PLANNER,DIRECTOR CABIN 01,cabin table - manager table,Manager Cabin Table,count,1.00,0.24,0.22,,,,,aggregated 1 inserts
+INSERT,PLANNER,DIRECTOR CABIN 01,chair hb,CHAIR HB,count,1.00,0.19,0.09,,,,,aggregated 1 inserts
+INSERT,PLANNER,DIRECTOR CABIN 01,chair mb,CHAIR MB2,count,2.00,15.62,0.08,,,,,aggregated 2 inserts
+INSERT,PLANNER,DIRECTOR CABIN 01,decoratives,Planters_Med,count,1.00,0.07,0.07,,,,,aggregated 1 inserts
+INSERT,PLANNER,DIRECTOR CABIN 01,door glass frameless 2,Door_Glass,count,1.00,0.12,0.12,,,,,aggregated 1 inserts
+INSERT,PLANNER,DIRECTOR CABIN 01,sofa 3s,SOFA 3 SETER,count,1.00,0.27,0.09,,,,,aggregated 1 inserts
+INSERT,PLANNER,DIRECTOR CABIN 02,cabin table - manager table,Manager Cabin Table,count,1.00,0.24,0.22,,,,,aggregated 1 inserts
+INSERT,PLANNER,DIRECTOR CABIN 02,chair hb,CHAIR HB,count,1.00,0.19,0.09,,,,,aggregated 1 inserts
+INSERT,PLANNER,DIRECTOR CABIN 02,chair mb,CHAIR MB2,count,2.00,26.58,0.08,,,,,aggregated 2 inserts
+INSERT,PLANNER,DIRECTOR CABIN 02,decoratives,Planters_Med,count,1.00,0.07,0.07,,,,,aggregated 1 inserts
+INSERT,PLANNER,DIRECTOR CABIN 02,door glass frameless 2,Door_Glass,count,1.00,0.12,0.12,,,,,aggregated 1 inserts
+INSERT,PLANNER,DIRECTOR CABIN 02,sofa 3s,SOFA 3 SETER,count,1.00,0.27,0.09,,,,,aggregated 1 inserts
+INSERT,PLANNER,FEMALE WASHROOM,door flush toilet 2,Door_Flush,count,1.00,0.12,0.12,,,,,aggregated 1 inserts
+INSERT,PLANNER,FEMALE WASHROOM,partition_upvc,PHENOLIC PARTITION,count,1.00,0.16,0.16,,,,,aggregated 1 inserts
+INSERT,PLANNER,FEMALE WASHROOM,wash basin,WashBasin_Rectangular,count,1.00,0.07,0.06,,,,,aggregated 1 inserts
+INSERT,PLANNER,FEMALE WASHROOM,wc,WC,count,2.00,0.05,0.05,,,,,aggregated 2 inserts
+INSERT,PLANNER,MALE WASHROOM,partition_upvc,PHENOLIC PARTITION,count,1.00,0.16,0.16,,,,,aggregated 1 inserts
+INSERT,PLANNER,MALE WASHROOM,urinal,Urinal,count,4.00,20.89,0.04,,,,,aggregated 4 inserts
+INSERT,PLANNER,MALE WASHROOM,wash basin,WashBasin_Rectangular,count,1.00,0.07,0.06,,,,,aggregated 1 inserts
+INSERT,PLANNER,MALE WASHROOM,wc,WC,count,2.00,0.05,0.05,,,,,aggregated 2 inserts
+INSERT,PLANNER,MANAGER CABIN 01,cabin table - manager table,Manager Cabin Table,count,1.00,0.24,0.22,,,,,aggregated 1 inserts
+INSERT,PLANNER,MANAGER CABIN 01,chair hb,CHAIR HB,count,1.00,0.19,0.09,,,,,aggregated 1 inserts
+INSERT,PLANNER,MANAGER CABIN 01,chair mb,CHAIR MB2,count,2.00,0.09,0.08,,,,,aggregated 2 inserts
+INSERT,PLANNER,MANAGER CABIN 01,door glass frameless 2,Door_Glass,count,1.00,0.12,0.12,,,,,aggregated 1 inserts
+INSERT,PLANNER,MANAGER CABIN 02,cabin table - manager table,Manager Cabin Table,count,1.00,0.24,0.22,,,,,aggregated 1 inserts
+INSERT,PLANNER,MANAGER CABIN 02,chair hb,CHAIR HB,count,1.00,0.19,0.09,,,,,aggregated 1 inserts
+INSERT,PLANNER,MANAGER CABIN 02,chair mb,CHAIR MB2,count,2.00,25.40,0.08,,,,,aggregated 2 inserts
+INSERT,PLANNER,MANAGER CABIN 02,decoratives,Planters_Med,count,1.00,0.07,0.07,,,,,aggregated 1 inserts
+INSERT,PLANNER,MANAGER CABIN 02,decoratives,Planters_Small,count,1.00,0.05,0.04,,,,,aggregated 1 inserts
+INSERT,PLANNER,MANAGER CABIN 02,door glass frameless 2,Door_Glass,count,1.00,0.12,0.12,,,,,aggregated 1 inserts
+INSERT,PLANNER,STORE ROOM,door glass frameless 2,Door_Glass,count,1.00,0.12,0.12,,,,,aggregated 1 inserts
+INSERT,PLANNER,WORKSTATION AREA 01,chair mb,CHAIR MB2,count,15.00,14.25,0.08,,,,,aggregated 15 inserts
+INSERT,PLANNER,WORKSTATION AREA 01,low height storage with planter box,LHS 4FT,count,4.00,0.16,0.06,,,,,aggregated 4 inserts
+INSERT,PLANNER,WORKSTATION AREA 01,workstation - y shaped,WORKSTAION HEXA 4FT,count,15.00,14.40,0.14,,,,,aggregated 15 inserts
+INSERT,PLANNER,WORKSTATION AREA 02,chair mb,CHAIR MB2,count,56.00,0.09,0.08,,,,,aggregated 56 inserts
+INSERT,PLANNER,WORKSTATION AREA 02,decoratives,Planters_Med,count,2.00,0.07,0.07,,,,,aggregated 2 inserts
+INSERT,PLANNER,WORKSTATION AREA 02,door flush toilet 2,Door_Flush,count,1.00,0.12,0.12,,,,,aggregated 1 inserts
+INSERT,PLANNER,WORKSTATION AREA 02,low height storage with planter box,LHS 4FT,count,7.00,0.16,0.06,,,,,aggregated 7 inserts
+INSERT,PLANNER,WORKSTATION AREA 02,workstation - l shaped with aluminium partition,WORKSTAION L SHAPE 5FT,count,2.00,0.20,0.20,,,,,aggregated 2 inserts
+INSERT,PLANNER,WORKSTATION AREA 02,workstation - y shaped,WORKSTAION HEXA 4FT,count,51.00,0.27,0.14,,,,,aggregated 51 inserts
+INSERT,PLANNER,WORKSTATION AREA 03,chair mb,CHAIR MB2,count,3.00,0.09,0.08,,,,,aggregated 3 inserts
+INSERT,PLANNER,WORKSTATION AREA 03,decoratives,Planters_Small,count,1.00,0.05,0.04,,,,,aggregated 1 inserts
+INSERT,PLANNER,WORKSTATION AREA 03,low height storage with planter box,LHS 4FT,count,1.00,0.16,0.06,,,,,aggregated 1 inserts
+INSERT,PLANNER,WORKSTATION AREA 03,low height storage with planter box,LSH 6FT,count,1.00,,,,,,,aggregated 1 inserts
+INSERT,PLANNER,WORKSTATION AREA 03,workstation - y shaped,WORKSTAION HEXA 4FT,count,3.00,0.27,0.14,,,,,aggregated 3 inserts
+LAYER_SUMMARY,PLATFORM,FEMALE WASHROOM,,,layer,,0.16,0.08,0.48,0.01,,,CLOSED (rectangle): length/width + perimeter & area
+LAYER_SUMMARY,PLATFORM,MALE WASHROOM,,,layer,,0.16,0.08,0.48,0.01,,,CLOSED (rectangle): length/width + perimeter & area
+LAYER_SUMMARY,SIPOREX 6in,FEMALE WASHROOM,,,layer,,1.02,0.02,2.08,0.02,,,CLOSED (rectangle): length/width + perimeter & area
+LAYER_SUMMARY,SIPOREX 6in,MALE WASHROOM,,,layer,,0.84,0.02,1.72,0.02,,,CLOSED (rectangle): length/width + perimeter & area
+LAYER_SUMMARY,Stairs,,,,layer,,0.63,0.51,2.27,0.32,,,CLOSED (rectangle): length/width + perimeter & area
+LAYER_SUMMARY,STORAGE,,,,layer,,0.20,0.08,0.56,0.02,,,CLOSED (rectangle): length/width + perimeter & area
+LAYER_SUMMARY,WALL,,,,layer,,16.56,0.03,33.17,0.45,,,CLOSED (rectangle): length/width + perimeter & area
+LAYER_SUMMARY,WALL,DIRECTOR CABIN 02,,,layer,,0.34,0.03,0.75,0.01,,,CLOSED (rectangle): length/width + perimeter & area
+LAYER_SUMMARY,WALL,MALE WASHROOM,,,layer,,0.10,0.02,0.25,0.00,,,CLOSED (rectangle): length/width + perimeter & area
+LAYER_SUMMARY,WALL,WORKSTATION AREA 01,,,layer,,0.34,0.03,0.75,0.01,,,CLOSED (rectangle): length/width + perimeter & area
+LAYER_SUMMARY,WALL,WORKSTATION AREA 02,,,layer,,0.34,0.03,0.75,0.01,,,CLOSED (rectangle): length/width + perimeter & area

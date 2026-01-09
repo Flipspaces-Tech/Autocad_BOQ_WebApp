@@ -1,44 +1,55 @@
 #!/usr/bin/env python3
 # DXF → CSV + Google Sheets (Apps Script Web App)
-# - Aggregates INSERTs by (block_name, category(layer), zone) using median bbox (L/W)
+# - Aggregates INSERTs by (block_name, category(upload layer), category1(original dwg layer), zone) using median bbox (L/W)
 # - Sends category1 = original DWG layer (lowercased) to Detail
 # - Zone detection from PLANNER (INSERT bbox or closed LWPOLYLINE + nearest/inside label)
 # - Layer totals with dominant color vote → ByLayer tab (color swatches)
-# - Detail tab: Apps Script now reorders columns to: category1, BOQ name, zone, ...
-#              and aggregates zones under same (category1 + BOQ name) into one row.
+# - Detail tab: Apps Script reorders columns and can merge zones under same (category1 + BOQ name)
 #
 # IMPORTANT:
 # - Keep "headers" names stable: category1, BOQ name, zone, qty_type, qty_value, length (ft), width (ft), Description, Preview, remarks
 # - Apps Script handles the final shaping/merging.
 
 from __future__ import annotations
-import argparse, csv, io, base64, time, math, logging, os, tempfile
-from pathlib import Path
-from typing import List, Tuple, Optional, Dict
-from dataclasses import dataclass
 
+import argparse
+import base64
+import csv
+import io
+import json
+import logging
+import math
+import os
+import tempfile
+import time
+import uuid
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+
+import numpy as np
 import requests
+
 import ezdxf
 from ezdxf import colors as ezcolors
 from ezdxf import recover
-import json
-import uuid
-
-import numpy as np
-import cv2
-
-from ezdxf.addons.drawing import RenderContext, Frontend
+from ezdxf.addons.drawing import Frontend, RenderContext
 from ezdxf.addons.drawing.matplotlib import MatplotlibBackend
 
+# --- OpenCV (installed via opencv-python-headless in requirements.txt) ---
+try:
+    import cv2
+except ModuleNotFoundError:
+    cv2 = None
+    logging.warning("cv2 not installed. Previews will be disabled unless you add opencv-python-headless.")
 
-
-
+# Matplotlib headless
 os.environ.setdefault("MPLCONFIGDIR", "/tmp/matplotlib")
 os.makedirs(os.environ["MPLCONFIGDIR"], exist_ok=True)
-
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+
 
 # ===== Defaults you can edit =====
 DXF_FOLDER = r"C:\Users\admin\Documents\AUTOCAD_WEBAPP\DXF"
@@ -47,7 +58,7 @@ OUT_ROOT   = r"C:\Users\admin\Documents\AUTOCAD_WEBAPP\EXPORTS"
 GS_WEBAPP_URL       = "https://script.google.com/macros/s/AKfycbwTTg9SzLo70ICTbpr2a5zNw84CG6kylNulVONenq4BADQIuCq7GuJqtDq7H_QfV0pe/exec"
 GSHEET_ID           = "12AsC0b7_U4dxhfxEZwtrwOXXALAnEEkQm5N8tg_RByM"
 GSHEET_TAB          = "TEST"            # Detail tab
-GSHEET_SUMMARY_TAB  = ""                     # blank → auto "<GSHEET_TAB>_ByLayer"
+GSHEET_SUMMARY_TAB  = ""                # blank → auto "<GSHEET_TAB>_ByLayer"
 GSHEET_MODE         = "replace"
 GS_DRIVE_FOLDER_ID  = ""
 
@@ -55,14 +66,14 @@ GS_DRIVE_FOLDER_ID  = ""
 DESC_TAGS = {"DESC", "DESCRIPTION", "NOTE", "REM", "REMARK", "INFO", "META_DESC"}
 
 ENABLE_PREVIEWS = True
+if cv2 is None:
+    ENABLE_PREVIEWS = False
+
 
 # =========================
 # ONE.PY PREVIEW ENGINE
-# (transparent N×N, trimmed, black/white strokes)
 # =========================
-
-# --- preview config (match one.py defaults) ---
-PREVIEW_TARGET_SIZE = 128          # final icon size (N×N)
+PREVIEW_TARGET_SIZE = 128
 PREVIEW_DPI         = 240
 PREVIEW_PAD_PCT     = 0.04
 PREVIEW_MARGIN_PCT  = 0.10
@@ -79,16 +90,9 @@ PREVIEW_CLOSE_GAPS_KSIZE  = 1
 PREVIEW_EDGE_BG_THRESH    = 250
 PREVIEW_MIN_VISIBLE_ALPHA = 8
 
-# stroke: "black" or "white"
 PREVIEW_STROKE = os.getenv("PREVIEW_STROKE", "black").strip().lower()
 if PREVIEW_STROKE not in ("black","white"):
     PREVIEW_STROKE = "black"
-
-
-
-
-
-
 
 
 # ===== Headers =====
@@ -106,9 +110,8 @@ DETAIL_HEADERS = [
     "length (ft)","width (ft)",
     "Description",
     "Preview",
-    "remarks"   # ✅ add this (because you send it in data_rows)
+    "remarks"
 ]
-
 
 LAYER_HEADERS = [
     "category",
@@ -123,6 +126,7 @@ LAYER_HEADERS = [
 # ===== Formatting & switches =====
 DEC_PLACES = 2
 FORCE_PLANNER_CATEGORY = True  # If zone exists, send "category" as PLANNER in Detail
+
 
 # ===== Utilities =====
 def layer_or_misc(name: str) -> str:
@@ -180,6 +184,7 @@ def _fmt_num(val, places: int | None = None) -> str:
 def _rgb_to_hex(rgb: tuple[int,int,int]) -> str:
     r, g, b = rgb
     return "#{:02X}{:02X}{:02X}".format(r, g, b)
+
 
 # ===== Curve sampling helpers =====
 def _sample_arc_pts(cx, cy, r, start_deg: Optional[float], end_deg: Optional[float]):
@@ -271,6 +276,7 @@ def _collect_points_from_entity(e):
                         x = float(getattr(v, "x", v[0])); y = float(getattr(v, "y", v[1]))
                         yield (x, y)
 
+
 # ===== Oriented bbox helpers =====
 def _convex_hull(points: list[tuple[float,float]]) -> list[tuple[float,float]]:
     pts = sorted(set(points))
@@ -341,6 +347,7 @@ def _bbox_of_insert_xy(ins) -> Optional[Tuple[float,float]]:
     except Exception:
         return None
 
+
 # ===== ZONES =====
 def _insert_bbox(ins) -> Optional[tuple[float,float,float,float]]:
     try:
@@ -398,85 +405,117 @@ class Zone:
 def _collect_planner_zones(msp) -> list[Zone]:
     zones: list[Zone] = []
 
-    # 1) Prefer PLANNER inserts (bbox zones)
+    # ---------- A) PLANNER INSERT zones (bbox -> rectangle poly) ----------
     for ins in msp.query('INSERT[layer=="PLANNER"]'):
         try:
-            b = _insert_bbox(ins)
-            if not b: continue
+            b = _insert_bbox(ins)  # uses your existing sampler
+            if not b:
+                continue
             minx, miny, maxx, maxy = b
-            poly = [(minx, miny), (maxx, miny), (maxx, maxy), (minx, maxy), (minx, miny)]
+            poly = _normalize_poly([(minx, miny), (maxx, miny), (maxx, maxy), (minx, maxy), (minx, miny)])
+
+            # name priority: ATTRIB tags -> effective_name/block name
             zname = None
             try:
-                cand_tags = {"NAME","ROOM","ZONE","LABEL","TITLE"}
+                cand_tags = {"NAME", "ROOM", "ZONE", "LABEL", "TITLE"}
                 for att in getattr(ins, "attribs", lambda: [])() or []:
                     tag = (getattr(att.dxf, "tag", "") or "").upper()
                     if tag in cand_tags:
                         txt = (getattr(att.dxf, "text", "") or "").strip()
-                        if txt: zname = txt; break
+                        if txt:
+                            zname = txt
+                            break
             except Exception:
                 pass
+
             if not zname:
-                zname = (getattr(ins, "effective_name", None)
-                         or getattr(ins, "block_name", None)
-                         or getattr(ins.dxf, "name", "")).strip()
-            if not zname: zname = "Zone"
+                zname = (
+                    (getattr(ins, "effective_name", None) or "")
+                    or (getattr(ins, "block_name", None) or "")
+                    or (getattr(ins.dxf, "name", "") or "")
+                ).strip()
+
+            if not zname:
+                zname = "Zone"
+
             zones.append(Zone(name=zname, poly=poly))
         except Exception:
             pass
 
-    if zones:
-        seen = set(); out=[]
-        for z in zones:
-            key=(z.name, tuple(z.poly))
-            if key not in seen:
-                out.append(z); seen.add(key)
-        return out
-
-    # 2) Fallback: closed PLANNER polylines + TEXT/MTEXT labels
+    # ---------- B) PLANNER closed polylines + labels ----------
     tmp: list[Zone] = []
     for e in msp.query('LWPOLYLINE[layer=="PLANNER"]'):
         try:
-            if not bool(getattr(e, "closed", False)): continue
+            if not bool(getattr(e, "closed", False)):
+                continue
             poly = _poly_from_lwpoly(e)
-            if len(poly) >= 3: tmp.append(Zone(name="", poly=poly))
-        except Exception:
-            pass
-    if not tmp: return []
-
-    labels: list[tuple[str,tuple[float,float]]] = []
-    for t in msp.query('TEXT'):
-        try:
-            labels.append(((t.dxf.text or "").strip(), (float(t.dxf.insert.x), float(t.dxf.insert.y))))
-        except Exception:
-            pass
-    for mt in msp.query('MTEXT'):
-        try:
-            raw=(mt.text or "").strip()
-            labels.append((raw.split("\n",1)[0].strip(), (float(mt.dxf.insert.x), float(mt.dxf.insert.y))))
+            poly = _normalize_poly(poly)
+            if len(poly) >= 3:
+                tmp.append(Zone(name="", poly=poly))
         except Exception:
             pass
 
-    def _centroid(poly):
-        xs=[p[0] for p in poly]; ys=[p[1] for p in poly]
-        return ((sum(xs)/len(xs)) if xs else 0.0, (sum(ys)/len(ys)) if ys else 0.0)
+    if tmp:
+        labels: list[tuple[str, tuple[float, float]]] = []
+        for t in msp.query("TEXT"):
+            try:
+                labels.append(((t.dxf.text or "").strip(), (float(t.dxf.insert.x), float(t.dxf.insert.y))))
+            except Exception:
+                pass
+        for mt in msp.query("MTEXT"):
+            try:
+                raw = (mt.text or "").strip()
+                labels.append((raw.split("\n", 1)[0].strip(), (float(mt.dxf.insert.x), float(mt.dxf.insert.y))))
+            except Exception:
+                pass
 
-    used=set(); zones_out=[]
-    for i,z in enumerate(tmp, start=1):
-        zname=None
-        for idx,(txt,pt) in enumerate(labels):
-            if idx in used or not txt: continue
-            if point_in_polygon(pt,z.poly):
-                zname=txt; used.add(idx); break
-        if not zname and labels:
-            cx,cy=_centroid(z.poly); best=None
-            for idx,(txt,(x,y)) in enumerate(labels):
-                if idx in used or not txt: continue
-                d=(x-cx)*(x-cx)+(y-cy)*(y-cy)
-                if (best is None) or (d<best[0]): best=(d,idx,txt)
-            if best: _,idx,txt=best; zname=txt; used.add(idx)
-        if not zname: zname=f"Zone {i:02d}"
-        zones_out.append(Zone(name=zname, poly=z.poly))
-    return zones_out
+        used = set()
+        for i, z in enumerate(tmp, start=1):
+            zname = None
+
+            # label inside polygon
+            for idx, (txt, pt) in enumerate(labels):
+                if idx in used or not txt:
+                    continue
+                if point_in_polygon(pt, z.poly):
+                    zname = txt
+                    used.add(idx)
+                    break
+
+            # fallback: nearest label to centroid
+            if not zname and labels:
+                xs = [p[0] for p in z.poly]
+                ys = [p[1] for p in z.poly]
+                cx = sum(xs) / len(xs)
+                cy = sum(ys) / len(ys)
+
+                best = None
+                for idx, (txt, (x, y)) in enumerate(labels):
+                    if idx in used or not txt:
+                        continue
+                    d = (x - cx) * (x - cx) + (y - cy) * (y - cy)
+                    if best is None or d < best[0]:
+                        best = (d, idx, txt)
+                if best:
+                    _, idx, txt = best
+                    zname = txt
+                    used.add(idx)
+
+            if not zname:
+                zname = f"Zone {i:02d}"
+
+            zones.append(Zone(name=zname, poly=z.poly))
+
+    # de-dupe
+    seen = set()
+    out = []
+    for z in zones:
+        key = (z.name, tuple(z.poly))
+        if key not in seen:
+            out.append(z)
+            seen.add(key)
+
+    return out
 
 def _zone_for_point(pt: tuple[float,float], zones: list[Zone]) -> Optional[str]:
     for z in zones:
@@ -497,6 +536,7 @@ def _zone_for_entity(e, zones: list[Zone]) -> str:
         return ""
     z = _zone_for_point(c, zones)
     return z or ""
+
 
 # ===== Row builder =====
 def make_row(entity_type, qty_type, qty_value,
@@ -524,148 +564,8 @@ def make_row(entity_type, qty_type, qty_value,
         "description": description or ""
     }
 
-# ===== Previews (Detail) =====
-# def _render_preview_from_insert(ins, size_px: int = 192, pad_ratio: float = 0.06) -> str:
-#     fig = None
-#     buf = None
-#     try:
-#         polylines: list[list[tuple[float, float]]] = []
-#         minx = miny = float("inf")
-#         maxx = maxy = float("-inf")
 
-#         for ve in ins.virtual_entities():
-#             et = ve.dxftype()
-#             pts: list[tuple[float, float]] = []
-
-#             if et == "LINE":
-#                 pts = [
-#                     (float(ve.dxf.start.x), float(ve.dxf.start.y)),
-#                     (float(ve.dxf.end.x),   float(ve.dxf.end.y)),
-#                 ]
-
-#             elif et == "LWPOLYLINE":
-#                 verts = list(ve)
-#                 n = len(verts)
-#                 if n:
-#                     closed = bool(getattr(ve, "closed", False))
-#                     for i in range(n if closed else n - 1):
-#                         j = (i + 1) % n
-#                         try:
-#                             b = float(verts[i][4])
-#                         except Exception:
-#                             b = 0.0
-#                         seg = _bulge_arc_points(
-#                             (float(verts[i][0]), float(verts[i][1])),
-#                             (float(verts[j][0]), float(verts[j][1])),
-#                             b,
-#                         )
-#                         if not pts:
-#                             pts.extend(seg)
-#                         else:
-#                             pts.extend(seg if pts[-1] != seg[0] else seg[1:])
-#                     if closed and pts and pts[0] != pts[-1]:
-#                         pts.append(pts[0])
-
-#             elif et == "POLYLINE":
-#                 vs = list(ve.vertices())
-#                 if vs:
-#                     coords = []
-#                     for v in vs:
-#                         loc = getattr(v.dxf, "location", None)
-#                         if loc is not None:
-#                             coords.append((float(loc.x), float(loc.y)))
-#                         else:
-#                             coords.append((float(getattr(v.dxf, "x", 0.0)),
-#                                            float(getattr(v.dxf, "y", 0.0))))
-
-#                     closed = bool(getattr(ve, "is_closed", getattr(ve, "closed", False)))
-#                     n = len(coords)
-#                     tmp = []
-#                     for i in range(n - (0 if closed else 1)):
-#                         j = (i + 1) % n
-#                         try:
-#                             b = float(vs[i].dxf.bulge)
-#                         except Exception:
-#                             b = 0.0
-#                         seg = _bulge_arc_points(coords[i], coords[j], b)
-#                         if not tmp:
-#                             tmp.extend(seg)
-#                         else:
-#                             tmp.extend(seg if tmp[-1] != seg[0] else seg[1:])
-#                     if closed and tmp and tmp[0] != tmp[-1]:
-#                         tmp.append(tmp[0])
-#                     pts = tmp
-
-#             elif et == "CIRCLE":
-#                 cx, cy = float(ve.dxf.center.x), float(ve.dxf.center.y)
-#                 r = float(ve.dxf.radius)
-#                 if r > 0:
-#                     pts = list(_sample_arc_pts(cx, cy, r, None, None))
-#                     if pts and pts[0] != pts[-1]:
-#                         pts.append(pts[0])
-
-#             elif et == "ARC":
-#                 cx, cy = float(ve.dxf.center.x), float(ve.dxf.center.y)
-#                 r = float(ve.dxf.radius)
-#                 sa, ea = float(ve.dxf.start_angle), float(ve.dxf.end_angle)
-#                 if r > 0:
-#                     pts = list(_sample_arc_pts(cx, cy, r, sa, ea))
-
-#             if len(pts) >= 2 and any(pts[i] != pts[i + 1] for i in range(len(pts) - 1)):
-#                 polylines.append(pts)
-#                 for (x, y) in pts:
-#                     minx = min(minx, x); miny = min(miny, y)
-#                     maxx = max(maxx, x); maxy = max(maxy, y)
-
-#         if minx == float("inf") or not polylines:
-#             return ""
-
-#         w = max(maxx - minx, 1.0)
-#         h = max(maxy - miny, 1.0)
-#         size = max(w, h)
-#         pad = max(size * pad_ratio, 0.5)
-
-#         cx = (minx + maxx) * 0.5
-#         cy = (miny + maxy) * 0.5
-#         half = size * 0.5 + pad
-#         xmin, xmax = cx - half, cx + half
-#         ymin, ymax = cy - half, cy + half
-
-#         fig = plt.figure(figsize=(size_px / 100, size_px / 100), dpi=100)
-#         ax = fig.add_subplot(111)
-#         ax.axis("off")
-#         ax.set_aspect("equal")
-
-#         for pts in polylines:
-#             xs = [p[0] for p in pts]
-#             ys = [p[1] for p in pts]
-#             ax.plot(xs, ys, linewidth=1.25)
-
-#         ax.set_xlim([xmin, xmax])
-#         ax.set_ylim([ymin, ymax])
-
-#         buf = io.BytesIO()
-#         plt.subplots_adjust(0, 0, 1, 1)
-#         fig.savefig(buf, format="png", transparent=True, bbox_inches="tight", pad_inches=0)
-#         return base64.b64encode(buf.getvalue()).decode("ascii")
-
-#     except Exception as ex:
-#         logging.exception("Preview render failed for INSERT=%s : %s",
-#                           getattr(getattr(ins, "dxf", None), "name", "<?>"), ex)
-#         return ""
-#     finally:
-#         try:
-#             if fig is not None:
-#                 plt.close(fig)
-#         except Exception:
-#             pass
-#         try:
-#             if buf is not None:
-#                 buf.close()
-#         except Exception:
-#             pass
-
-
+# ===== Previews (ONE.PY) =====
 def _preview_build_frontend(doc, ax):
     ctx     = RenderContext(doc)
     backend = MatplotlibBackend(ax)
@@ -676,11 +576,7 @@ def _preview_build_frontend(doc, ax):
     except Exception:
         return Frontend(ctx, backend)
 
-
 def _preview_render_entities_png_bytes(doc, entities, dpi=PREVIEW_DPI, pad_pct=PREVIEW_PAD_PCT) -> bytes:
-    """
-    Renders given DXF entities to a transparent PNG (bytes) using ezdxf drawing frontend.
-    """
     import io
     fig = plt.figure()
     ax  = fig.add_axes([0,0,1,1])
@@ -719,7 +615,6 @@ def _preview_render_entities_png_bytes(doc, entities, dpi=PREVIEW_DPI, pad_pct=P
     plt.close(fig)
     return buf.getvalue()
 
-
 def _ensure_rgba(img):
     if img is None:
         return None
@@ -735,7 +630,6 @@ def _ensure_rgba(img):
             img = np.dstack([img[..., 0:3], np.full(img.shape[:2], 255, np.uint8)])
     return np.ascontiguousarray(img, np.uint8)
 
-
 def _as_single_channel(mask):
     if mask is None:
         return None
@@ -747,7 +641,6 @@ def _as_single_channel(mask):
         mask = (mask > 0).astype(np.uint8)
     return np.ascontiguousarray(mask)
 
-
 def _add_transparent_margin_rgba(img_rgba, margin):
     img_rgba = _ensure_rgba(img_rgba)
     if margin <= 0:
@@ -756,7 +649,6 @@ def _add_transparent_margin_rgba(img_rgba, margin):
     canvas = np.zeros((h + 2*margin, w + 2*margin, 4), np.uint8)
     canvas[margin:margin+h, margin:margin+w] = img_rgba
     return canvas
-
 
 def _resize_to_square_rgba(img_rgba, size: int):
     img_rgba = _ensure_rgba(img_rgba)
@@ -780,7 +672,6 @@ def _resize_to_square_rgba(img_rgba, size: int):
     final = cv2.resize(canvas, (size, size), interpolation=cv2.INTER_AREA)
     return final
 
-
 def _dilate_mask(mask, ksize, iters):
     m = _as_single_channel(mask)
     if m is None or ksize <= 0 or iters <= 0:
@@ -788,7 +679,6 @@ def _dilate_mask(mask, ksize, iters):
     k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (ksize, ksize))
     out = cv2.dilate(m, k, iterations=iters)
     return _as_single_channel(out)
-
 
 def _close_small_gaps(mask, ksize=2):
     m = _as_single_channel(mask)
@@ -798,16 +688,11 @@ def _close_small_gaps(mask, ksize=2):
     out = cv2.morphologyEx(m, cv2.MORPH_CLOSE, k, iterations=1)
     return _as_single_channel(out)
 
-
 def _labels_touching_border(labels):
     h, w = labels.shape
     return set(np.unique(np.r_[labels[0, :], labels[-1, :], labels[:, 0], labels[:, -1]]))
 
-
 def _onepy_trim_to_icon_png_bytes(png_bytes: bytes, target_size: int, stroke: str) -> bytes:
-    """
-    Takes a transparent PNG (bytes), trims, masks, thickens and returns icon PNG bytes (transparent).
-    """
     arr = np.frombuffer(png_bytes, dtype=np.uint8)
     img = cv2.imdecode(arr, cv2.IMREAD_UNCHANGED)
     img = _ensure_rgba(img)
@@ -852,7 +737,6 @@ def _onepy_trim_to_icon_png_bytes(png_bytes: bytes, target_size: int, stroke: st
         out[mask, :3] = 0
     else:
         out[mask, :3] = 255
-
     out[mask, 3] = 255
 
     out = _resize_to_square_rgba(out, target_size)
@@ -860,41 +744,25 @@ def _onepy_trim_to_icon_png_bytes(png_bytes: bytes, target_size: int, stroke: st
     ok, enc = cv2.imencode(".png", out, [int(cv2.IMWRITE_PNG_COMPRESSION), 3])
     return enc.tobytes() if ok else b""
 
-
 def _render_onepy_preview_base64(doc, ins, target_size=PREVIEW_TARGET_SIZE, stroke=PREVIEW_STROKE) -> str:
-    """
-    Render INSERT using one.py pipeline -> returns base64 PNG string.
-    """
     try:
-        # Render insert to transparent PNG bytes
         png0 = _preview_render_entities_png_bytes(doc, [ins], dpi=PREVIEW_DPI, pad_pct=PREVIEW_PAD_PCT)
-
-        # Trim/normalize to icon
         png1 = _onepy_trim_to_icon_png_bytes(png0, target_size=target_size, stroke=stroke)
         if not png1:
             return ""
-
         return base64.b64encode(png1).decode("ascii")
     except Exception:
         logging.exception("ONE.PY preview render failed for INSERT=%s", getattr(getattr(ins, "dxf", None), "name", "<?>"))
         return ""
 
-
-
-
-
 def _build_preview_cache(msp) -> Dict[str, str]:
-    """
-    Build preview cache for unique INSERT block names using one.py renderer.
-    """
     cache: Dict[str, str] = {}
     doc = getattr(msp, "doc", None)
-    if doc is None:
+    if doc is None or not ENABLE_PREVIEWS:
         return cache
 
     for ins in msp.query("INSERT"):
         try:
-            # skip PLANNER zone boxes
             ly = layer_or_misc(getattr(ins.dxf, "layer", ""))
             if ly.upper() == "PLANNER":
                 continue
@@ -918,6 +786,7 @@ def _build_preview_cache(msp) -> Dict[str, str]:
 
     logging.info("ONE.PY preview cache built for %d unique blocks", len(cache))
     return cache
+
 
 # ===== Colors =====
 def _layer_rgb_map(doc) -> Dict[str, tuple[int,int,int]]:
@@ -1027,6 +896,7 @@ def _dominant_layer_rgb_map(msp, base_layer_rgb: Dict[str, tuple[int,int,int]], 
             out[ly] = max(hist.items(), key=lambda kv: kv[1])[0]
     return out
 
+
 # ===== Description helpers =====
 def _description_from_insert(ins) -> str:
     try:
@@ -1061,6 +931,7 @@ def _attdef_default_for_desc(msp, base_name: str) -> str:
     except Exception:
         pass
     return ""
+
 
 # ===== Rows: INSERT detail =====
 def iter_block_rows(msp, include_xrefs: bool,
@@ -1102,17 +973,27 @@ def iter_block_rows(msp, include_xrefs: bool,
             else:
                 L_out = W_out = None
 
-            # Zone by center point
+            # ✅ Zone detection: use INSERT insertion point first (most reliable)
             center_zone = ""
-            b = _insert_bbox(ins)
-            if b:
-                cx, cy = _bbox_center(b)
-                zname = _zone_for_point((cx,cy), zones)
+
+            pt = _insert_ref_point(ins)
+            if pt:
+                zname = _zone_for_point(pt, zones)
                 if zname:
                     center_zone = zname
 
+            # fallback to bbox center if insertion point didn't hit any zone
+            if not center_zone:
+                b = _insert_bbox(ins)
+                if b:
+                    cx, cy = _bbox_center(b)
+                    zname = _zone_for_point((cx, cy), zones)
+                    if zname:
+                        center_zone = zname
+
+
+            # IMPORTANT: only force PLANNER for upload category IF this insert has a zone
             upload_layer = "PLANNER" if (FORCE_PLANNER_CATEGORY and center_zone) else ly
-            remarks_txt  = f"dwg_layer={ly}; aggregated 1 inserts"
 
             out.append(make_row(
                 "INSERT", "count", 1.0,
@@ -1123,13 +1004,50 @@ def iter_block_rows(msp, include_xrefs: bool,
                 preview_b64=preview_cache.get(name, ""),
                 zone=center_zone,
                 category1=(ly or "").strip().lower(),
-                remarks=remarks_txt,
+                remarks="",
                 description=desc_txt
             ))
         except Exception as ex:
             logging.exception("INSERT failed: %s", ex)
 
     return out
+
+
+
+def _normalize_poly(poly: list[tuple[float, float]]) -> list[tuple[float, float]]:
+    """Remove duplicate consecutive points + drop explicit closing point for stable PIP."""
+    if not poly:
+        return poly
+
+    cleaned = []
+    for x, y in poly:
+        if not cleaned:
+            cleaned.append((x, y))
+        else:
+            px, py = cleaned[-1]
+            if abs(x - px) > 1e-9 or abs(y - py) > 1e-9:
+                cleaned.append((x, y))
+
+    # drop last point if same as first (keep polygon open for point_in_polygon)
+    if len(cleaned) > 2:
+        x0, y0 = cleaned[0]
+        xN, yN = cleaned[-1]
+        if abs(x0 - xN) < 1e-9 and abs(y0 - yN) < 1e-9:
+            cleaned.pop()
+
+    return cleaned
+
+
+def _insert_ref_point(ins) -> Optional[tuple[float, float]]:
+    """Best point to classify an INSERT into a PLANNER zone."""
+    try:
+        ip = getattr(ins.dxf, "insert", None)
+        if ip is not None:
+            return (float(ip.x), float(ip.y))
+    except Exception:
+        pass
+    return None
+
 
 # ===== Layer metrics =====
 def solve_rect_dims_from_perimeter_area(P: float, A: float) -> Tuple[Optional[float], Optional[float]]:
@@ -1305,6 +1223,7 @@ def make_layer_total_rows(open_by, peri_by, area_by, layer_rgb=None):
             ))
     return rows
 
+
 # ===== Sorting (keeps category blocks tidy) =====
 def _norm_cat(s: str) -> str:
     s = (s or "").strip()
@@ -1313,17 +1232,20 @@ def _norm_cat(s: str) -> str:
 
 def sort_rows_for_category_blocks(rows: list[dict]) -> None:
     def _key(r):
-        et = r.get("entity_type", "")
         cat  = _norm_cat(r.get("layer", ""))
-        zone = (r.get("zone","") or "").lower()
+        zone = (r.get("zone", "") or "").lower()
+        et   = r.get("entity_type", "") or ""
 
-        if et == "LAYER_SUMMARY":
-            zone_rank = 1 if zone == "" else 0
-            return (cat, zone_rank, zone)
+        # ✅ keep types consistent across ALL rows
+        et_rank = 1 if et == "LAYER_SUMMARY" else 0
 
-        cat1 = (r.get("category1","") or "").lower()
-        return (cat, zone, cat1, r.get("block_name",""))
+        cat1 = (r.get("category1", "") or "").lower()
+        boq  = (r.get("block_name", "") or "").lower()
+
+        return (cat, et_rank, zone, cat1, boq)
+
     rows.sort(key=_key)
+
 
 # ===== CSV =====
 def write_csv(rows: list[dict], out_path: Path) -> None:
@@ -1345,9 +1267,10 @@ def write_csv(rows: list[dict], out_path: Path) -> None:
                 "perimeter":   r.get("perimeter",""),
                 "area (ft2)":  r.get("area",""),
                 "Description": r.get("description",""),
-                "Preview":     "",  # preview images handled by Web App
+                "Preview":     "",
                 "remarks":     r.get("remarks",""),
             })
+
 
 # ===== Sheets upload =====
 def split_rows_for_upload(rows: list[dict]) -> tuple[list[dict], list[dict]]:
@@ -1376,51 +1299,53 @@ def push_rows_to_webapp(rows: list[dict], webapp_url: str, spreadsheet_id: str,
             try:
                 return sess.post(webapp_url, json=payload, timeout=timeout, allow_redirects=True)
             except requests.exceptions.ReadTimeout:
-                if attempt == tries: raise
+                if attempt == tries:
+                    raise
                 time.sleep(backoff ** attempt)
-        # ✅ keep track across batches so we don't send duplicate previews
-    seen_preview_boq: set[str] = set()
 
+    # ✅ keep track across batches so we don't send duplicate previews
+    seen_preview_boq: set[str] = set()
 
     total = len(rows); sent = 0
     for idx, i in enumerate(range(0, total, batch_rows), start=1):
         chunk = rows[i:i+batch_rows]
-        if not chunk: break
+        if not chunk:
+            break
 
         is_layer = (chunk[0].get("entity_type") == "LAYER_SUMMARY")
 
         if is_layer:
             headers = LAYER_HEADERS
             data_rows = [[
-                r.get("layer",""),         # category
-                r.get("zone",""),          # zone
-                r.get("bbox_length",""),   # length (ft)
-                r.get("bbox_width",""),    # width (ft)
+                r.get("layer",""),
+                r.get("zone",""),
+                r.get("bbox_length",""),
+                r.get("bbox_width",""),
                 r.get("perimeter",""),
                 r.get("area",""),
-                "",                        # Preview
+                "",
             ] for r in chunk]
             images     = [""] * len(chunk)
             bg_colors  = [r.get("preview_hex","") for r in chunk]
             color_only = True
 
         else:
-            # Keep headers stable; Apps Script will reshape the Detail tab
             headers = DETAIL_HEADERS
             data_rows = [[
                 r.get("entity_type",""),
-                r.get("layer",""),         # category (Apps Script drops this)
+                r.get("layer",""),
                 r.get("zone",""),
                 r.get("category1",""),
-                r.get("block_name",""),    # BOQ name
+                r.get("block_name",""),
                 r.get("qty_type",""),
                 r.get("qty_value",""),
                 r.get("bbox_length",""),
                 r.get("bbox_width",""),
                 r.get("description",""),
-                "",                        # Preview
+                "",
                 r.get("remarks",""),
             ] for r in chunk]
+
             if ENABLE_PREVIEWS:
                 images = []
                 for r in chunk:
@@ -1432,7 +1357,6 @@ def push_rows_to_webapp(rows: list[dict], webapp_url: str, spreadsheet_id: str,
                         images.append("")
             else:
                 images = [""] * len(chunk)
-
 
             bg_colors  = [""] * len(chunk)
             color_only = False
@@ -1456,11 +1380,13 @@ def push_rows_to_webapp(rows: list[dict], webapp_url: str, spreadsheet_id: str,
             payload["summaryTab"] = summary_tab
             payload["summaryRows"] = []
 
-        r = post_with_retries(payload)
-        if not r.ok:
-            raise RuntimeError(f"WebApp upload failed (batch {idx}): HTTP {r.status_code} {r.text}")
+        resp = post_with_retries(payload)
+        if not resp.ok:
+            raise RuntimeError(f"WebApp upload failed (batch {idx}): HTTP {resp.status_code} {resp.text}")
+
         sent += len(data_rows)
         logging.info("WebApp batch %d: uploaded %d/%d rows", idx, sent, total)
+
 
 # ===== Main pipeline =====
 def collect_dxf_files(path: Path, recursive: bool) -> List[Path]:
@@ -1483,7 +1409,6 @@ def process_one_dxf(dxf_path: Path, out_dir: Path | None,
                     unitless_units: str) -> list[dict]:
     logging.info("Processing DXF: %s", dxf_path)
 
-    # robust read
     try:
         doc = ezdxf.readfile(str(dxf_path))
     except ezdxf.DXFStructureError:
@@ -1495,47 +1420,60 @@ def process_one_dxf(dxf_path: Path, out_dir: Path | None,
     scale_to_m = units_scale_to_meters(doc, unitless_units=unitless_units)
 
     preview_cache = _build_preview_cache(msp) if ENABLE_PREVIEWS else {}
-
     zones = _collect_planner_zones(msp)
 
     rows: list[dict] = []
-
     insert_rows = iter_block_rows(msp, include_xrefs, scale_to_m, target_units, preview_cache, zones)
 
-    # Aggregate inserts by (BOQ, category(layer), zone) so Apps Script can later combine zones
+    # ✅ FIXED AGGREGATION (this is what fixes wrong counts)
+    # Group by: (BOQ name, upload category, category1(original layer), zone)
     if aggregate_inserts:
-        groups: Dict[tuple[str,str,str], dict] = {}
+        groups: Dict[tuple[str, str, str, str], dict] = {}
+
         for r in insert_rows:
-            key = (r["block_name"], "PLANNER" if FORCE_PLANNER_CATEGORY else r["layer"], r.get("zone",""))
+            key = (
+                (r.get("block_name") or "").strip(),
+                (r.get("layer") or "").strip(),                  # already PLANNER only if zoned
+                (r.get("category1") or "").strip().lower(),      # keep layers separate
+                (r.get("zone") or "").strip(),
+            )
+
             g = groups.setdefault(key, {
-                "count":0, "xs":[], "ys":[],
+                "count": 0,
+                "xs": [],
+                "ys": [],
                 "preview": r.get("preview_b64",""),
-                "category1": r.get("category1",""),
-                "desc": r.get("description","")
+                "desc": r.get("description",""),
             })
+
             g["count"] += 1
+
             try:
-                if r["bbox_length"] and r["bbox_width"]:
+                if r.get("bbox_length") and r.get("bbox_width"):
                     g["xs"].append(float(r["bbox_length"]))
                     g["ys"].append(float(r["bbox_width"]))
             except Exception:
                 pass
+
             if (not g.get("desc")) and r.get("description"):
                 g["desc"] = r.get("description","")
 
-        for (name, layer, zone_name), g in groups.items():
+        for (name, layer, cat1, zone_name), g in groups.items():
             xs = sorted(g["xs"]); ys = sorted(g["ys"])
             bx = xs[len(xs)//2] if xs else None
             by = ys[len(ys)//2] if ys else None
+
             rows.append(make_row(
                 "INSERT", "count", float(g["count"]),
-                block_name=name, layer=layer, handle="",
+                block_name=name,
+                layer=layer,
+                handle="",
                 remarks=f"aggregated {g['count']} inserts",
                 bbox_length=bx, bbox_width=by,
                 preview_b64=g.get("preview",""),
                 zone=zone_name,
-                category1=g.get("category1",""),
-                description=g.get("desc","")
+                category1=cat1,
+                description=g.get("desc",""),
             ))
     else:
         rows.extend(insert_rows)
@@ -1554,22 +1492,17 @@ def process_one_dxf(dxf_path: Path, out_dir: Path | None,
     return rows
 
 
-
+# ===== CloudConvert (DWG→DXF) =====
 CLOUDCONVERT_API_KEY = os.getenv("CLOUDCONVERT_API_KEY", "").strip()
 CLOUDCONVERT_API_BASE = os.getenv("CLOUDCONVERT_API_BASE", "https://api.cloudconvert.com/v2").strip()
 
 def cloudconvert_dwg_to_dxf_bytes(dwg_path: Path) -> bytes:
-    """
-    Converts a local DWG file to DXF using CloudConvert and returns DXF bytes.
-    Uses: import/upload -> convert -> export/url
-    """
     if not CLOUDCONVERT_API_KEY:
         raise RuntimeError("Missing CLOUDCONVERT_API_KEY in environment")
 
     headers = {"Authorization": f"Bearer {CLOUDCONVERT_API_KEY}"}
     sess = requests.Session()
 
-    # 1) Create job
     job_payload = {
         "tasks": {
             "import-1": {"operation": "import/upload"},
@@ -1588,22 +1521,15 @@ def cloudconvert_dwg_to_dxf_bytes(dwg_path: Path) -> bytes:
     job = r.json()["data"]
     job_id = job["id"]
 
-    # 2) Upload file to the signed URL
     import_task = next(t for t in job["tasks"] if t["name"] == "import-1")
     form = import_task["result"]["form"]
     upload_url = form["url"]
     params = form["parameters"]
 
     with dwg_path.open("rb") as f:
-        up = sess.post(
-            upload_url,
-            data=params,
-            files={"file": (dwg_path.name, f)},
-            timeout=300,
-        )
+        up = sess.post(upload_url, data=params, files={"file": (dwg_path.name, f)}, timeout=300)
     up.raise_for_status()
 
-    # 3) Poll until finished
     while True:
         j = sess.get(f"{CLOUDCONVERT_API_BASE}/jobs/{job_id}", headers=headers, timeout=60)
         j.raise_for_status()
@@ -1613,49 +1539,20 @@ def cloudconvert_dwg_to_dxf_bytes(dwg_path: Path) -> bytes:
         if status == "finished":
             export_task = next(t for t in data["tasks"] if t["name"] == "export-1")
             file_url = export_task["result"]["files"][0]["url"]
-
             out = sess.get(file_url, timeout=300)
             out.raise_for_status()
             return out.content
 
         if status == "error":
-            # Helpful debugging
             raise RuntimeError("CloudConvert job failed: " + json.dumps(data, indent=2)[:5000])
 
         time.sleep(1.5)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # =========================
-# FastAPI/Render entrypoint
+# FastAPI/Render entrypoints
 # =========================
 def process_doc_from_stream(stream) -> dict:
-    """
-    Called by Backend/app.py:
-        process_doc_from_stream(io.StringIO(dxf_text))
-
-    Writes the text DXF to a temp .dxf file, runs the existing pipeline,
-    pushes to Google Sheets via your Apps Script WebApp, and returns a summary.
-    """
-    import uuid
-    import tempfile
-    from pathlib import Path
-
-    # 1) Read DXF text from stream
     try:
         dxf_text = stream.read()
     except Exception as e:
@@ -1666,15 +1563,11 @@ def process_doc_from_stream(stream) -> dict:
 
     upload_id = str(uuid.uuid4())[:12]
 
-    # 2) Write to temp DXF file (Render-safe: /tmp)
     with tempfile.TemporaryDirectory() as td:
         td_path = Path(td)
         dxf_path = td_path / f"upload_{upload_id}.dxf"
-
-        # keep original text, avoid encoding crashes
         dxf_path.write_text(dxf_text, encoding="utf-8", errors="replace")
 
-        # 3) Run your existing DXF pipeline (returns rows list[dict])
         rows = process_one_dxf(
             dxf_path=dxf_path,
             out_dir=td_path,
@@ -1685,10 +1578,8 @@ def process_doc_from_stream(stream) -> dict:
             unitless_units="m",
         )
 
-        # 4) Push to Sheets using the SAME logic as CLI
         detail_rows, layer_rows = split_rows_for_upload(rows)
 
-        # Detail tab
         if detail_rows and GS_WEBAPP_URL and GSHEET_ID and GSHEET_TAB:
             push_rows_to_webapp(
                 detail_rows,
@@ -1703,7 +1594,6 @@ def process_doc_from_stream(stream) -> dict:
                 drive_folder_id=GS_DRIVE_FOLDER_ID,
             )
 
-        # ByLayer tab (auto name if blank)
         summary_tab_name = GSHEET_SUMMARY_TAB.strip() if GSHEET_SUMMARY_TAB.strip() else (GSHEET_TAB + "_ByLayer")
         if layer_rows and GS_WEBAPP_URL and GSHEET_ID and summary_tab_name:
             push_rows_to_webapp(
@@ -1719,7 +1609,6 @@ def process_doc_from_stream(stream) -> dict:
                 drive_folder_id=GS_DRIVE_FOLDER_ID,
             )
 
-        # 5) Return summary for frontend
         return {
             "ok": True,
             "upload_id": upload_id,
@@ -1731,14 +1620,7 @@ def process_doc_from_stream(stream) -> dict:
             "layer_rows": len(layer_rows),
         }
 
-
 def process_cad_from_upload(filename: str, file_bytes: bytes) -> dict:
-    """
-    Upload handler:
-      - if DWG: convert to DXF using CloudConvert
-      - if DXF: use directly
-      - then run your existing pipeline and Sheets push
-    """
     if not filename:
         raise ValueError("Missing filename")
 
@@ -1757,7 +1639,6 @@ def process_cad_from_upload(filename: str, file_bytes: bytes) -> dict:
         in_path = td_path / f"upload_{upload_id}{ext}"
         in_path.write_bytes(file_bytes)
 
-        # Convert if DWG
         if ext == ".dwg":
             dxf_bytes = cloudconvert_dwg_to_dxf_bytes(in_path)
             dxf_path = td_path / f"converted_{upload_id}.dxf"
@@ -1765,7 +1646,6 @@ def process_cad_from_upload(filename: str, file_bytes: bytes) -> dict:
         else:
             dxf_path = in_path
 
-        # Run your existing DXF pipeline
         rows = process_one_dxf(
             dxf_path=dxf_path,
             out_dir=td_path,
@@ -1776,7 +1656,6 @@ def process_cad_from_upload(filename: str, file_bytes: bytes) -> dict:
             unitless_units="m",
         )
 
-        # Push to Sheets (same as your process_doc_from_stream)
         detail_rows, layer_rows = split_rows_for_upload(rows)
 
         if detail_rows and GS_WEBAPP_URL and GSHEET_ID and GSHEET_TAB:
@@ -1811,14 +1690,12 @@ def process_cad_from_upload(filename: str, file_bytes: bytes) -> dict:
         sheet_url = f"https://docs.google.com/spreadsheets/d/{GSHEET_ID}"
 
         return {
-            # ✅ what React expects
             "ok": True,
             "message": "✅ BOQ generated successfully.",
             "sheetUrl": sheet_url,
             "sheetName": GSHEET_TAB,
             "uploadId": upload_id,
 
-            # ✅ keep your existing debug/telemetry fields (optional)
             "upload_id": upload_id,
             "input_ext": ext,
             "gsheet_id": GSHEET_ID,
@@ -1828,10 +1705,6 @@ def process_cad_from_upload(filename: str, file_bytes: bytes) -> dict:
             "detail_rows": len(detail_rows),
             "layer_rows": len(layer_rows),
         }
-
-
-
-
 
 
 def main():
@@ -1888,7 +1761,6 @@ def main():
     def _summary_tab_name():
         return gsheet_summary_tab if gsheet_summary_tab else (gsheet_tab + "_ByLayer")
 
-    # Single file explicit output
     if explicit_out:
         if len(files) != 1:
             logging.error("--out is for a single file. For folders, use --out-dir."); return
@@ -1911,7 +1783,6 @@ def main():
                                     sparse_anchor=sparse_anchor, drive_folder_id=drive_folder_id)
         return
 
-    # Folder mode
     out_dir = out_dir if str(out_dir).strip() else None
     all_rows: list[dict] = []
     for f in files:
