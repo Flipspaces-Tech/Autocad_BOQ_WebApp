@@ -35,6 +35,7 @@ from ezdxf import colors as ezcolors
 from ezdxf import recover
 from ezdxf.addons.drawing import Frontend, RenderContext
 from ezdxf.addons.drawing.matplotlib import MatplotlibBackend
+from contextlib import contextmanager
 
 # --- OpenCV (installed via opencv-python-headless in requirements.txt) ---
 try:
@@ -126,6 +127,55 @@ LAYER_HEADERS = [
 # ===== Formatting & switches =====
 DEC_PLACES = 2
 FORCE_PLANNER_CATEGORY = True  # If zone exists, send "category" as PLANNER in Detail
+
+
+
+def _parse_settings_json(settings_json: str) -> dict:
+    if not settings_json:
+        return {}
+    try:
+        if isinstance(settings_json, (dict, list)):
+            return settings_json
+        return json.loads(settings_json)
+    except Exception:
+        logging.warning("Invalid settings JSON, ignoring.")
+        return {}
+
+@contextmanager
+def _apply_runtime_overrides(cfg: dict):
+    """
+    Quick override mechanism to control render + sheet settings per request.
+    NOTE: This mutates module globals (not ideal for high concurrency).
+    """
+    keys = {
+        # sheet
+        "GSHEET_ID": "gsheetId",
+        "GSHEET_TAB": "gsheetTab",
+
+        # preview params
+        "PREVIEW_TARGET_SIZE": "previewTargetSize",
+        "PREVIEW_DPI": "previewDpi",
+        "PREVIEW_INK_THRESHOLD": "previewInkThreshold",
+        "PREVIEW_THICKEN_PX": "previewThickenPx",
+        "PREVIEW_THICKEN_ITER": "previewThickenIter",
+        "PREVIEW_CLOSE_GAPS_KSIZE": "previewCloseGapsKsize",
+        "PREVIEW_EDGE_BG_THRESH": "previewEdgeBgThresh",
+        "PREVIEW_MIN_VISIBLE_ALPHA": "previewMinVisibleAlpha",
+        "PREVIEW_PAD_PCT": "previewPadPct",
+        "PREVIEW_MARGIN_PCT": "previewMarginPct",
+        "PREVIEW_SUPERSAMPLE": "previewSupersample",
+    }
+
+    old = {}
+    try:
+        for py_name, cfg_name in keys.items():
+            if cfg_name in cfg and cfg[cfg_name] is not None and cfg[cfg_name] != "":
+                old[py_name] = globals().get(py_name)
+                globals()[py_name] = cfg[cfg_name]
+        yield
+    finally:
+        for k, v in old.items():
+            globals()[k] = v
 
 
 # ===== Utilities =====
@@ -1620,7 +1670,7 @@ def process_doc_from_stream(stream) -> dict:
             "layer_rows": len(layer_rows),
         }
 
-def process_cad_from_upload(filename: str, file_bytes: bytes) -> dict:
+def process_cad_from_upload(filename: str, file_bytes: bytes, settings_json: str = "") -> dict:
     if not filename:
         raise ValueError("Missing filename")
 
@@ -1631,80 +1681,77 @@ def process_cad_from_upload(filename: str, file_bytes: bytes) -> dict:
     if not file_bytes or len(file_bytes) < 10:
         raise ValueError("Empty upload")
 
-    upload_id = str(uuid.uuid4())[:12]
+    cfg = _parse_settings_json(settings_json)
 
-    with tempfile.TemporaryDirectory() as td:
-        td_path = Path(td)
+    with _apply_runtime_overrides(cfg):
+        upload_id = str(uuid.uuid4())[:12]
 
-        in_path = td_path / f"upload_{upload_id}{ext}"
-        in_path.write_bytes(file_bytes)
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
 
-        if ext == ".dwg":
-            dxf_bytes = cloudconvert_dwg_to_dxf_bytes(in_path)
-            dxf_path = td_path / f"converted_{upload_id}.dxf"
-            dxf_path.write_bytes(dxf_bytes)
-        else:
-            dxf_path = in_path
+            in_path = td_path / f"upload_{upload_id}{ext}"
+            in_path.write_bytes(file_bytes)
 
-        rows = process_one_dxf(
-            dxf_path=dxf_path,
-            out_dir=td_path,
-            target_units="ft",
-            include_xrefs=False,
-            layer_metrics=True,
-            aggregate_inserts=True,
-            unitless_units="m",
-        )
+            if ext == ".dwg":
+                dxf_bytes = cloudconvert_dwg_to_dxf_bytes(in_path)
+                dxf_path = td_path / f"converted_{upload_id}.dxf"
+                dxf_path.write_bytes(dxf_bytes)
+            else:
+                dxf_path = in_path
 
-        detail_rows, layer_rows = split_rows_for_upload(rows)
-
-        if detail_rows and GS_WEBAPP_URL and GSHEET_ID and GSHEET_TAB:
-            push_rows_to_webapp(
-                detail_rows,
-                webapp_url=GS_WEBAPP_URL,
-                spreadsheet_id=GSHEET_ID,
-                tab=GSHEET_TAB,
-                mode=GSHEET_MODE,
-                summary_tab="",
-                batch_rows=300,
-                valign_middle=True,
-                sparse_anchor="last",
-                drive_folder_id=GS_DRIVE_FOLDER_ID,
+            rows = process_one_dxf(
+                dxf_path=dxf_path,
+                out_dir=td_path,
+                target_units="ft",
+                include_xrefs=False,
+                layer_metrics=True,
+                aggregate_inserts=True,
+                unitless_units="m",
             )
 
-        summary_tab_name = GSHEET_SUMMARY_TAB.strip() if GSHEET_SUMMARY_TAB.strip() else (GSHEET_TAB + "_ByLayer")
-        if layer_rows and GS_WEBAPP_URL and GSHEET_ID and summary_tab_name:
-            push_rows_to_webapp(
-                layer_rows,
-                webapp_url=GS_WEBAPP_URL,
-                spreadsheet_id=GSHEET_ID,
-                tab=summary_tab_name,
-                mode="replace" if GSHEET_MODE == "replace" else "append",
-                summary_tab="",
-                batch_rows=300,
-                valign_middle=True,
-                sparse_anchor="last",
-                drive_folder_id=GS_DRIVE_FOLDER_ID,
-            )
+            detail_rows, layer_rows = split_rows_for_upload(rows)
 
-        sheet_url = f"https://docs.google.com/spreadsheets/d/{GSHEET_ID}"
+            if detail_rows and GS_WEBAPP_URL and GSHEET_ID and GSHEET_TAB:
+                push_rows_to_webapp(
+                    detail_rows,
+                    webapp_url=GS_WEBAPP_URL,
+                    spreadsheet_id=GSHEET_ID,
+                    tab=GSHEET_TAB,
+                    mode=GSHEET_MODE,
+                    summary_tab="",
+                    batch_rows=300,
+                    valign_middle=True,
+                    sparse_anchor="last",
+                    drive_folder_id=GS_DRIVE_FOLDER_ID,
+                )
 
-        return {
-            "ok": True,
-            "message": "✅ BOQ generated successfully.",
-            "sheetUrl": sheet_url,
-            "sheetName": GSHEET_TAB,
-            "uploadId": upload_id,
+            summary_tab_name = GSHEET_SUMMARY_TAB.strip() if GSHEET_SUMMARY_TAB.strip() else (GSHEET_TAB + "_ByLayer")
+            if layer_rows and GS_WEBAPP_URL and GSHEET_ID and summary_tab_name:
+                push_rows_to_webapp(
+                    layer_rows,
+                    webapp_url=GS_WEBAPP_URL,
+                    spreadsheet_id=GSHEET_ID,
+                    tab=summary_tab_name,
+                    mode="replace" if GSHEET_MODE == "replace" else "append",
+                    summary_tab="",
+                    batch_rows=300,
+                    valign_middle=True,
+                    sparse_anchor="last",
+                    drive_folder_id=GS_DRIVE_FOLDER_ID,
+                )
 
-            "upload_id": upload_id,
-            "input_ext": ext,
-            "gsheet_id": GSHEET_ID,
-            "sheet_tab": GSHEET_TAB,
-            "sheet_summary_tab": summary_tab_name,
-            "total_rows": len(rows),
-            "detail_rows": len(detail_rows),
-            "layer_rows": len(layer_rows),
-        }
+            sheet_url = f"https://docs.google.com/spreadsheets/d/{GSHEET_ID}"
+
+            return {
+                "ok": True,
+                "message": "✅ BOQ generated successfully.",
+                "sheetUrl": sheet_url,
+                "sheetName": GSHEET_TAB,
+                "uploadId": upload_id,
+                "total_rows": len(rows),
+                "detail_rows": len(detail_rows),
+                "layer_rows": len(layer_rows),
+            }
 
 
 def main():

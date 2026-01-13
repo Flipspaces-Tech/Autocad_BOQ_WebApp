@@ -13,6 +13,29 @@ export default function BoqUploadPage() {
   const [uploadId, setUploadId] = useState("");
   const inputRef = useRef(null);
 
+  // ✅ Settings collapse (closed by default)
+  const [showSettings, setShowSettings] = useState(false);
+
+  const [renderSettings, setRenderSettings] = useState({
+    gsheetId: "12AsC0b7_U4dxhfxEZwtrwOXXALAnEEkQm5N8tg_RByM",
+    gsheetTab: "TEST",
+
+    previewTargetSize: 128,
+    previewDpi: 240,
+
+    previewInkThreshold: 100,
+    previewThickenPx: 2,
+    previewThickenIter: 2,
+    previewCloseGapsKsize: 1,
+
+    previewEdgeBgThresh: 250,
+    previewMinVisibleAlpha: 8,
+
+    previewPadPct: 0.04,
+    previewMarginPct: 0.10,
+    previewSupersample: 2,
+  });
+
   /** Reset BOQ result state */
   const resetState = () => {
     setStatus("");
@@ -33,7 +56,6 @@ export default function BoqUploadPage() {
       setStatus("❌ Please upload a .dwg or .dxf file.");
       return;
     }
-
 
     setFile(f);
     resetState();
@@ -67,12 +89,12 @@ export default function BoqUploadPage() {
     inputRef.current?.click();
   };
 
-  /** Submit handler → calls FastAPI /upload */
+  /** Submit handler */
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!file) {
-      setStatus("Please choose a DXF file first.");
+      setStatus("Please choose a Dwg or DXF file first.");
       return;
     }
 
@@ -84,10 +106,10 @@ export default function BoqUploadPage() {
 
     try {
       const formData = new FormData();
-      formData.append("file", file); // must be "file" to match FastAPI
+      formData.append("file", file);
+      formData.append("settings", JSON.stringify(renderSettings));
 
       const url = `${BACKEND_URL}/process-cad`;
-
       console.log("Calling backend:", url);
 
       const res = await fetch(url, {
@@ -133,9 +155,7 @@ export default function BoqUploadPage() {
         {/* Upload form */}
         <form className="boq-form" onSubmit={handleSubmit}>
           <div
-            className={`boq-dropzone ${
-              isDragging ? "boq-dropzone--drag" : ""
-            }`}
+            className={`boq-dropzone ${isDragging ? "boq-dropzone--drag" : ""}`}
             onDrop={onDrop}
             onDragOver={onDragOver}
             onDragLeave={onDragLeave}
@@ -146,7 +166,6 @@ export default function BoqUploadPage() {
               ref={inputRef}
               style={{ display: "none" }}
               accept=".dwg,.dxf"
-
               onChange={(e) => handleFileSelect(e.target.files[0])}
             />
 
@@ -156,7 +175,8 @@ export default function BoqUploadPage() {
               <>
                 <div className="boq-file-name">{file.name}</div>
                 <div className="boq-file-meta">
-                  {(file.size / (1024 * 1024)).toFixed(2)} MB · DWG
+                  {(file.size / (1024 * 1024)).toFixed(2)} MB ·{" "}
+                  {file.name.toLowerCase().endsWith(".dxf") ? "DXF" : "DWG"}
                 </div>
                 <button
                   type="button"
@@ -169,9 +189,7 @@ export default function BoqUploadPage() {
               </>
             ) : (
               <>
-                <p className="boq-dropzone-title">
-                  Drag &amp; drop your drawing here
-                </p>
+                <p className="boq-dropzone-title">Drag &amp; drop your drawing here</p>
                 <p className="boq-dropzone-sub">
                   or{" "}
                   <button
@@ -183,8 +201,145 @@ export default function BoqUploadPage() {
                     browse from your computer
                   </button>
                 </p>
-                <p className="boq-dropzone-hint">Supported: ASCII .dwg</p>
+                <p className="boq-dropzone-hint">Supported: .dwg / .dxf</p>
               </>
+            )}
+          </div>
+
+          {/* ✅ Collapsible settings */}
+          <div className="boq-settings">
+            <button
+              type="button"
+              className="boq-settings-toggle"
+              onClick={() => setShowSettings((v) => !v)}
+              aria-expanded={showSettings}
+            >
+              <span>Settings</span>
+              <span className={`boq-caret ${showSettings ? "open" : ""}`}>▾</span>
+            </button>
+
+            {showSettings && (
+              <div className="boq-settings-body">
+                <div className="boq-settings-grid">
+                  <label className="boq-setting full">
+                    <span>Google Sheet ID</span>
+                    <input
+                      type="text"
+                      value={renderSettings.gsheetId}
+                      onChange={(e) =>
+                        setRenderSettings((s) => ({ ...s, gsheetId: e.target.value }))
+                      }
+                    />
+                  </label>
+
+                  <label className="boq-setting">
+                    <span>Sheet Tab</span>
+                    <input
+                      type="text"
+                      value={renderSettings.gsheetTab}
+                      onChange={(e) =>
+                        setRenderSettings((s) => ({ ...s, gsheetTab: e.target.value }))
+                      }
+                    />
+                  </label>
+
+                  <label className="boq-setting">
+                    <span>Preview Size</span>
+                    <input
+                      type="number"
+                      min="32"
+                      max="512"
+                      value={renderSettings.previewTargetSize}
+                      onChange={(e) =>
+                        setRenderSettings((s) => ({
+                          ...s,
+                          previewTargetSize: Number(e.target.value || 0),
+                        }))
+                      }
+                    />
+                  </label>
+
+                  <label className="boq-setting">
+                    <span>Preview DPI</span>
+                    <input
+                      type="number"
+                      min="72"
+                      max="600"
+                      value={renderSettings.previewDpi}
+                      onChange={(e) =>
+                        setRenderSettings((s) => ({
+                          ...s,
+                          previewDpi: Number(e.target.value || 0),
+                        }))
+                      }
+                    />
+                  </label>
+
+                  <label className="boq-setting">
+                    <span>Ink Threshold</span>
+                    <input
+                      type="number"
+                      min="0"
+                      max="255"
+                      value={renderSettings.previewInkThreshold}
+                      onChange={(e) =>
+                        setRenderSettings((s) => ({
+                          ...s,
+                          previewInkThreshold: Number(e.target.value || 0),
+                        }))
+                      }
+                    />
+                  </label>
+
+                  <label className="boq-setting">
+                    <span>Thicken (px)</span>
+                    <input
+                      type="number"
+                      min="0"
+                      max="10"
+                      value={renderSettings.previewThickenPx}
+                      onChange={(e) =>
+                        setRenderSettings((s) => ({
+                          ...s,
+                          previewThickenPx: Number(e.target.value || 0),
+                        }))
+                      }
+                    />
+                  </label>
+
+                  <label className="boq-setting">
+                    <span>Thicken Iter</span>
+                    <input
+                      type="number"
+                      min="0"
+                      max="10"
+                      value={renderSettings.previewThickenIter}
+                      onChange={(e) =>
+                        setRenderSettings((s) => ({
+                          ...s,
+                          previewThickenIter: Number(e.target.value || 0),
+                        }))
+                      }
+                    />
+                  </label>
+
+                  <label className="boq-setting">
+                    <span>Close Gaps K</span>
+                    <input
+                      type="number"
+                      min="0"
+                      max="10"
+                      value={renderSettings.previewCloseGapsKsize}
+                      onChange={(e) =>
+                        setRenderSettings((s) => ({
+                          ...s,
+                          previewCloseGapsKsize: Number(e.target.value || 0),
+                        }))
+                      }
+                    />
+                  </label>
+                </div>
+              </div>
             )}
           </div>
 
@@ -233,8 +388,7 @@ export default function BoqUploadPage() {
           </div>
 
           <div className="boq-footnote">
-            Auto-syncs to your BOQ master sheet. No GCP login required for
-            users.
+            Auto-syncs to your BOQ master sheet. No GCP login required for users.
           </div>
         </div>
       </div>

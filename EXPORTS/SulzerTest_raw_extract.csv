@@ -1,5 +1,4 @@
 entity_type,category,zone,category1,BOQ name,qty_type,qty_value,length (ft),width (ft),perimeter,area (ft2),Description,Preview,remarks
-INSERT,CHAIR MB,,chair mb,CHAIR MB2,count,1.00,0.09,0.08,,,,,aggregated 1 inserts
 LAYER_SUMMARY,COLUMN,,,,layer,,6.84,0.03,13.74,0.20,,,CLOSED (rectangle): length/width + perimeter & area
 LAYER_SUMMARY,COLUMN,WORKSTATION AREA 02,,,layer,,0.91,0.04,1.89,0.03,,,CLOSED (rectangle): length/width + perimeter & area
 INSERT,DOOR VISION PANEL,,door vision panel,Door_Fire,count,2.00,0.12,0.12,,,,,aggregated 2 inserts
@@ -76,7 +75,7 @@ INSERT,PLANNER,STORE ROOM,door glass frameless 2,Door_Glass,count,1.00,0.12,0.12
 INSERT,PLANNER,WORKSTATION AREA 01,chair mb,CHAIR MB2,count,15.00,14.25,0.08,,,,,aggregated 15 inserts
 INSERT,PLANNER,WORKSTATION AREA 01,low height storage with planter box,LHS 4FT,count,4.00,0.16,0.06,,,,,aggregated 4 inserts
 INSERT,PLANNER,WORKSTATION AREA 01,workstation - y shaped,WORKSTAION HEXA 4FT,count,15.00,14.40,0.14,,,,,aggregated 15 inserts
-INSERT,PLANNER,WORKSTATION AREA 02,chair mb,CHAIR MB2,count,56.00,0.09,0.08,,,,,aggregated 56 inserts
+INSERT,PLANNER,WORKSTATION AREA 02,chair mb,CHAIR MB2,count,57.00,0.09,0.08,,,,,aggregated 57 inserts
 INSERT,PLANNER,WORKSTATION AREA 02,decoratives,Planters_Med,count,2.00,0.07,0.07,,,,,aggregated 2 inserts
 INSERT,PLANNER,WORKSTATION AREA 02,door flush toilet 2,Door_Flush,count,1.00,0.12,0.12,,,,,aggregated 1 inserts
 INSERT,PLANNER,WORKSTATION AREA 02,low height storage with planter box,LHS 4FT,count,7.00,0.16,0.06,,,,,aggregated 7 inserts
