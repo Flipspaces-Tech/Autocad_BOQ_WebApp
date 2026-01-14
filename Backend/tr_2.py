@@ -129,7 +129,6 @@ DEC_PLACES = 2
 FORCE_PLANNER_CATEGORY = True  # If zone exists, send "category" as PLANNER in Detail
 
 
-
 def _parse_settings_json(settings_json: str) -> dict:
     if not settings_json:
         return {}
@@ -140,6 +139,22 @@ def _parse_settings_json(settings_json: str) -> dict:
     except Exception:
         logging.warning("Invalid settings JSON, ignoring.")
         return {}
+
+def _to_int(v, default=None):
+    try:
+        if v is None or v == "":
+            return default
+        return int(float(v))
+    except Exception:
+        return default
+
+def _to_float(v, default=None):
+    try:
+        if v is None or v == "":
+            return default
+        return float(v)
+    except Exception:
+        return default
 
 @contextmanager
 def _apply_runtime_overrides(cfg: dict):
@@ -171,7 +186,17 @@ def _apply_runtime_overrides(cfg: dict):
         for py_name, cfg_name in keys.items():
             if cfg_name in cfg and cfg[cfg_name] is not None and cfg[cfg_name] != "":
                 old[py_name] = globals().get(py_name)
-                globals()[py_name] = cfg[cfg_name]
+
+                # cast properly
+                if py_name in ("PREVIEW_TARGET_SIZE","PREVIEW_DPI","PREVIEW_INK_THRESHOLD",
+                               "PREVIEW_THICKEN_PX","PREVIEW_THICKEN_ITER","PREVIEW_CLOSE_GAPS_KSIZE",
+                               "PREVIEW_EDGE_BG_THRESH","PREVIEW_MIN_VISIBLE_ALPHA","PREVIEW_SUPERSAMPLE"):
+                    globals()[py_name] = _to_int(cfg[cfg_name], globals().get(py_name))
+                elif py_name in ("PREVIEW_PAD_PCT","PREVIEW_MARGIN_PCT"):
+                    globals()[py_name] = _to_float(cfg[cfg_name], globals().get(py_name))
+                else:
+                    globals()[py_name] = cfg[cfg_name]
+
         yield
     finally:
         for k, v in old.items():
@@ -447,6 +472,35 @@ def _poly_from_lwpoly(e) -> list[tuple[float,float]]:
         pts.append(pts[0])
     return pts
 
+def _normalize_poly(poly: list[tuple[float, float]]) -> list[tuple[float, float]]:
+    """Remove duplicate consecutive points + drop explicit closing point for stable PIP."""
+    if not poly:
+        return poly
+    cleaned = []
+    for x, y in poly:
+        if not cleaned:
+            cleaned.append((x, y))
+        else:
+            px, py = cleaned[-1]
+            if abs(x - px) > 1e-9 or abs(y - py) > 1e-9:
+                cleaned.append((x, y))
+    if len(cleaned) > 2:
+        x0, y0 = cleaned[0]
+        xN, yN = cleaned[-1]
+        if abs(x0 - xN) < 1e-9 and abs(y0 - yN) < 1e-9:
+            cleaned.pop()
+    return cleaned
+
+def _insert_ref_point(ins) -> Optional[tuple[float, float]]:
+    """Best point to classify an INSERT into a PLANNER zone."""
+    try:
+        ip = getattr(ins.dxf, "insert", None)
+        if ip is not None:
+            return (float(ip.x), float(ip.y))
+    except Exception:
+        pass
+    return None
+
 @dataclass
 class Zone:
     name: str
@@ -458,13 +512,12 @@ def _collect_planner_zones(msp) -> list[Zone]:
     # ---------- A) PLANNER INSERT zones (bbox -> rectangle poly) ----------
     for ins in msp.query('INSERT[layer=="PLANNER"]'):
         try:
-            b = _insert_bbox(ins)  # uses your existing sampler
+            b = _insert_bbox(ins)
             if not b:
                 continue
             minx, miny, maxx, maxy = b
             poly = _normalize_poly([(minx, miny), (maxx, miny), (maxx, maxy), (minx, maxy), (minx, miny)])
 
-            # name priority: ATTRIB tags -> effective_name/block name
             zname = None
             try:
                 cand_tags = {"NAME", "ROOM", "ZONE", "LABEL", "TITLE"}
@@ -498,8 +551,7 @@ def _collect_planner_zones(msp) -> list[Zone]:
         try:
             if not bool(getattr(e, "closed", False)):
                 continue
-            poly = _poly_from_lwpoly(e)
-            poly = _normalize_poly(poly)
+            poly = _normalize_poly(_poly_from_lwpoly(e))
             if len(poly) >= 3:
                 tmp.append(Zone(name="", poly=poly))
         except Exception:
@@ -626,8 +678,13 @@ def _preview_build_frontend(doc, ax):
     except Exception:
         return Frontend(ctx, backend)
 
-def _preview_render_entities_png_bytes(doc, entities, dpi=PREVIEW_DPI, pad_pct=PREVIEW_PAD_PCT) -> bytes:
-    import io
+def _preview_render_entities_png_bytes(doc, entities, dpi: Optional[int] = None, pad_pct: Optional[float] = None) -> bytes:
+    # IMPORTANT: dpi/pad_pct must be read at runtime to respect overrides
+    if dpi is None:
+        dpi = int(PREVIEW_DPI)
+    if pad_pct is None:
+        pad_pct = float(PREVIEW_PAD_PCT)
+
     fig = plt.figure()
     ax  = fig.add_axes([0,0,1,1])
     ax.set_facecolor((0,0,0,0))
@@ -639,7 +696,7 @@ def _preview_render_entities_png_bytes(doc, entities, dpi=PREVIEW_DPI, pad_pct=P
 
     for e in entities:
         if hasattr(e, "dxf") and hasattr(e.dxf, "layer"):
-            if e.dxf.layer in PREVIEW_SKIP_LAYERS:
+            if (e.dxf.layer or "").upper() in PREVIEW_SKIP_LAYERS:
                 continue
         if hasattr(e, "dxftype") and e.dxftype() in PREVIEW_SKIP_DXF_TYPES:
             continue
@@ -700,13 +757,16 @@ def _add_transparent_margin_rgba(img_rgba, margin):
     canvas[margin:margin+h, margin:margin+w] = img_rgba
     return canvas
 
-def _resize_to_square_rgba(img_rgba, size: int):
+def _resize_to_square_rgba(img_rgba, size: int, supersample: Optional[int] = None):
     img_rgba = _ensure_rgba(img_rgba)
+    if supersample is None:
+        supersample = int(PREVIEW_SUPERSAMPLE)
+
     h, w = img_rgba.shape[:2]
     if h == 0 or w == 0:
         return np.zeros((size, size, 4), np.uint8)
 
-    target_big = size * PREVIEW_SUPERSAMPLE
+    target_big = size * max(1, supersample)
     scale = min(target_big / w, target_big / h)
     new_w = int(round(w * scale))
     new_h = int(round(h * scale))
@@ -742,7 +802,16 @@ def _labels_touching_border(labels):
     h, w = labels.shape
     return set(np.unique(np.r_[labels[0, :], labels[-1, :], labels[:, 0], labels[:, -1]]))
 
-def _onepy_trim_to_icon_png_bytes(png_bytes: bytes, target_size: int, stroke: str) -> bytes:
+def _onepy_trim_to_icon_png_bytes(
+    png_bytes: bytes,
+    target_size: Optional[int] = None,
+    stroke: Optional[str] = None
+) -> bytes:
+    if target_size is None:
+        target_size = int(PREVIEW_TARGET_SIZE)
+    if stroke is None:
+        stroke = PREVIEW_STROKE
+
     arr = np.frombuffer(png_bytes, dtype=np.uint8)
     img = cv2.imdecode(arr, cv2.IMREAD_UNCHANGED)
     img = _ensure_rgba(img)
@@ -763,21 +832,21 @@ def _onepy_trim_to_icon_png_bytes(png_bytes: bytes, target_size: int, stroke: st
             img = _ensure_rgba(img[y:y+h, x:x+w])
 
     size_max = max(img.shape[0], img.shape[1])
-    margin = int(round(size_max * PREVIEW_MARGIN_PCT))
+    margin = int(round(size_max * float(PREVIEW_MARGIN_PCT)))
     img = _add_transparent_margin_rgba(img, margin)
 
     rgb = img[..., :3]
     a   = img[..., 3]
     gray = cv2.cvtColor(rgb, cv2.COLOR_BGR2GRAY)
 
-    bg_candidates = _as_single_channel(((gray >= PREVIEW_EDGE_BG_THRESH) | (a <= PREVIEW_MIN_VISIBLE_ALPHA)).astype(np.uint8))
+    bg_candidates = _as_single_channel(((gray >= int(PREVIEW_EDGE_BG_THRESH)) | (a <= int(PREVIEW_MIN_VISIBLE_ALPHA))).astype(np.uint8))
     _, labels = cv2.connectedComponents(bg_candidates, 8)
     border_lbls = _labels_touching_border(labels)
     bg_mask = np.isin(labels, list(border_lbls)).astype(np.uint8) * 255
 
-    ink = ((bg_mask == 0) & ((a >= PREVIEW_MIN_VISIBLE_ALPHA) | (gray < PREVIEW_INK_THRESHOLD))).astype(np.uint8) * 255
-    ink = _close_small_gaps(ink, PREVIEW_CLOSE_GAPS_KSIZE)
-    ink = _dilate_mask(ink, PREVIEW_THICKEN_PX, PREVIEW_THICKEN_ITER)
+    ink = ((bg_mask == 0) & ((a >= int(PREVIEW_MIN_VISIBLE_ALPHA)) | (gray < int(PREVIEW_INK_THRESHOLD)))).astype(np.uint8) * 255
+    ink = _close_small_gaps(ink, int(PREVIEW_CLOSE_GAPS_KSIZE))
+    ink = _dilate_mask(ink, int(PREVIEW_THICKEN_PX), int(PREVIEW_THICKEN_ITER))
 
     h, w = img.shape[:2]
     out = np.zeros((h, w, 4), np.uint8)
@@ -789,14 +858,26 @@ def _onepy_trim_to_icon_png_bytes(png_bytes: bytes, target_size: int, stroke: st
         out[mask, :3] = 255
     out[mask, 3] = 255
 
-    out = _resize_to_square_rgba(out, target_size)
+    out = _resize_to_square_rgba(out, int(target_size), supersample=int(PREVIEW_SUPERSAMPLE))
 
     ok, enc = cv2.imencode(".png", out, [int(cv2.IMWRITE_PNG_COMPRESSION), 3])
     return enc.tobytes() if ok else b""
 
-def _render_onepy_preview_base64(doc, ins, target_size=PREVIEW_TARGET_SIZE, stroke=PREVIEW_STROKE) -> str:
+def _render_onepy_preview_base64(
+    doc,
+    ins,
+    target_size: Optional[int] = None,
+    stroke: Optional[str] = None,
+    dpi: Optional[int] = None,
+    pad_pct: Optional[float] = None
+) -> str:
     try:
-        png0 = _preview_render_entities_png_bytes(doc, [ins], dpi=PREVIEW_DPI, pad_pct=PREVIEW_PAD_PCT)
+        if target_size is None:
+            target_size = int(PREVIEW_TARGET_SIZE)
+        if stroke is None:
+            stroke = PREVIEW_STROKE
+
+        png0 = _preview_render_entities_png_bytes(doc, [ins], dpi=dpi, pad_pct=pad_pct)
         png1 = _onepy_trim_to_icon_png_bytes(png0, target_size=target_size, stroke=stroke)
         if not png1:
             return ""
@@ -805,37 +886,129 @@ def _render_onepy_preview_base64(doc, ins, target_size=PREVIEW_TARGET_SIZE, stro
         logging.exception("ONE.PY preview render failed for INSERT=%s", getattr(getattr(ins, "dxf", None), "name", "<?>"))
         return ""
 
-def _build_preview_cache(msp) -> Dict[str, str]:
-    cache: Dict[str, str] = {}
-    doc = getattr(msp, "doc", None)
-    if doc is None or not ENABLE_PREVIEWS:
-        return cache
+
+# ===== Description helpers =====
+def _description_from_insert(ins) -> str:
+    try:
+        for att in getattr(ins, "attribs", lambda: [])() or []:
+            tag = (getattr(att.dxf, "tag", "") or "").upper()
+            if tag in DESC_TAGS:
+                txt = (getattr(att.dxf, "text", "") or "").strip()
+                if txt:
+                    return txt
+    except Exception:
+        pass
+    return ""
+
+def _description_from_blockrecord(msp, base_name: str) -> str:
+    try:
+        if base_name and hasattr(msp, "doc") and base_name in msp.doc.blocks:
+            blkrec = msp.doc.blocks.get(base_name)
+            return (getattr(getattr(blkrec, "dxf", None), "description", "") or "").strip()
+    except Exception:
+        pass
+    return ""
+
+def _attdef_default_for_desc(msp, base_name: str) -> str:
+    try:
+        if base_name and hasattr(msp, "doc") and base_name in msp.doc.blocks:
+            blk = msp.doc.blocks.get(base_name)
+            for e in blk:
+                if e.dxftype() == "ATTDEF":
+                    tag = (getattr(e.dxf, "tag", "") or "").upper()
+                    if tag in DESC_TAGS:
+                        return (getattr(e.dxf, "text", "") or "").strip()
+    except Exception:
+        pass
+    return ""
+
+
+# ===== Rows: INSERT detail (NO previews here; deferred later) =====
+def iter_block_rows(
+    msp,
+    include_xrefs: bool,
+    scale_to_m: float,
+    target_units: str,
+    zones: list[Zone] | None = None
+) -> tuple[list[dict], dict[str, object]]:
+    """
+    Returns:
+      - raw insert rows WITHOUT preview_b64
+      - representative INSERT entity per block_name (first seen), to render previews later
+    """
+    out: list[dict] = []
+    reps: dict[str, object] = {}
+    zones = zones or []
 
     for ins in msp.query("INSERT"):
         try:
-            ly = layer_or_misc(getattr(ins.dxf, "layer", ""))
-            if ly.upper() == "PLANNER":
+            ly = getattr(ins.dxf, "layer", "")
+            if layer_or_misc(ly).upper() == "PLANNER":
                 continue
 
             name = (getattr(ins, "effective_name", None)
                     or getattr(ins, "block_name", None)
                     or getattr(ins.dxf, "name", ""))
 
-            if not name or name in cache:
+            base_name = name
+
+            if not include_xrefs and ("|" in (name or "")):
                 continue
 
-            cache[name] = _render_onepy_preview_base64(doc, ins) or ""
+            # store representative insert (first)
+            if name and name not in reps:
+                reps[name] = ins
 
-        except Exception:
-            logging.exception("Preview cache build failed for one INSERT")
+            # Description (fallback chain)
+            desc_txt = _description_from_insert(ins)
+            if not desc_txt:
+                desc_txt = _description_from_blockrecord(msp, base_name)
+            if not desc_txt:
+                desc_txt = _attdef_default_for_desc(msp, base_name)
 
-    try:
-        plt.close("all")
-    except Exception:
-        pass
+            # Dimensions (object-aligned bbox)
+            bbox_du = _bbox_of_insert_xy(ins)
+            if bbox_du:
+                L_m = bbox_du[0] * scale_to_m
+                W_m = bbox_du[1] * scale_to_m
+                L_out = to_target_units(L_m, target_units, "length")
+                W_out = to_target_units(W_m, target_units, "length")
+            else:
+                L_out = W_out = None
 
-    logging.info("ONE.PY preview cache built for %d unique blocks", len(cache))
-    return cache
+            # Zone detection
+            center_zone = ""
+            pt = _insert_ref_point(ins)
+            if pt:
+                zname = _zone_for_point(pt, zones)
+                if zname:
+                    center_zone = zname
+            if not center_zone:
+                b = _insert_bbox(ins)
+                if b:
+                    cx, cy = _bbox_center(b)
+                    zname = _zone_for_point((cx, cy), zones)
+                    if zname:
+                        center_zone = zname
+
+            upload_layer = "PLANNER" if (FORCE_PLANNER_CATEGORY and center_zone) else ly
+
+            out.append(make_row(
+                "INSERT", "count", 1.0,
+                block_name=name,
+                layer=upload_layer,
+                handle=getattr(ins.dxf, "handle", ""),
+                bbox_length=L_out, bbox_width=W_out,
+                preview_b64="",  # DEFERRED
+                zone=center_zone,
+                category1=(ly or "").strip().lower(),
+                remarks="",
+                description=desc_txt
+            ))
+        except Exception as ex:
+            logging.exception("INSERT failed: %s", ex)
+
+    return out, reps
 
 
 # ===== Colors =====
@@ -945,158 +1118,6 @@ def _dominant_layer_rgb_map(msp, base_layer_rgb: Dict[str, tuple[int,int,int]], 
         if hist:
             out[ly] = max(hist.items(), key=lambda kv: kv[1])[0]
     return out
-
-
-# ===== Description helpers =====
-def _description_from_insert(ins) -> str:
-    try:
-        for att in getattr(ins, "attribs", lambda: [])() or []:
-            tag = (getattr(att.dxf, "tag", "") or "").upper()
-            if tag in DESC_TAGS:
-                txt = (getattr(att.dxf, "text", "") or "").strip()
-                if txt:
-                    return txt
-    except Exception:
-        pass
-    return ""
-
-def _description_from_blockrecord(msp, base_name: str) -> str:
-    try:
-        if base_name and hasattr(msp, "doc") and base_name in msp.doc.blocks:
-            blkrec = msp.doc.blocks.get(base_name)
-            return (getattr(getattr(blkrec, "dxf", None), "description", "") or "").strip()
-    except Exception:
-        pass
-    return ""
-
-def _attdef_default_for_desc(msp, base_name: str) -> str:
-    try:
-        if base_name and hasattr(msp, "doc") and base_name in msp.doc.blocks:
-            blk = msp.doc.blocks.get(base_name)
-            for e in blk:
-                if e.dxftype() == "ATTDEF":
-                    tag = (getattr(e.dxf, "tag", "") or "").upper()
-                    if tag in DESC_TAGS:
-                        return (getattr(e.dxf, "text", "") or "").strip()
-    except Exception:
-        pass
-    return ""
-
-
-# ===== Rows: INSERT detail =====
-def iter_block_rows(msp, include_xrefs: bool,
-                    scale_to_m: float, target_units: str,
-                    preview_cache: Dict[str,str] | None = None,
-                    zones: list[Zone] | None = None) -> list[dict]:
-    out = []
-    preview_cache = preview_cache or {}
-    zones = zones or []
-
-    for ins in msp.query("INSERT"):
-        try:
-            ly = getattr(ins.dxf, "layer", "")
-            if layer_or_misc(ly).upper() == "PLANNER":
-                continue
-
-            name = (getattr(ins, "effective_name", None)
-                    or getattr(ins, "block_name", None)
-                    or getattr(ins.dxf, "name", ""))
-            base_name = name
-
-            if not include_xrefs and ("|" in (name or "")):
-                continue
-
-            # Description (fallback chain)
-            desc_txt = _description_from_insert(ins)
-            if not desc_txt:
-                desc_txt = _description_from_blockrecord(msp, base_name)
-            if not desc_txt:
-                desc_txt = _attdef_default_for_desc(msp, base_name)
-
-            # Dimensions (object-aligned bbox)
-            bbox_du = _bbox_of_insert_xy(ins)
-            if bbox_du:
-                L_m = bbox_du[0] * scale_to_m
-                W_m = bbox_du[1] * scale_to_m
-                L_out = to_target_units(L_m, target_units, "length")
-                W_out = to_target_units(W_m, target_units, "length")
-            else:
-                L_out = W_out = None
-
-            # ✅ Zone detection: use INSERT insertion point first (most reliable)
-            center_zone = ""
-
-            pt = _insert_ref_point(ins)
-            if pt:
-                zname = _zone_for_point(pt, zones)
-                if zname:
-                    center_zone = zname
-
-            # fallback to bbox center if insertion point didn't hit any zone
-            if not center_zone:
-                b = _insert_bbox(ins)
-                if b:
-                    cx, cy = _bbox_center(b)
-                    zname = _zone_for_point((cx, cy), zones)
-                    if zname:
-                        center_zone = zname
-
-
-            # IMPORTANT: only force PLANNER for upload category IF this insert has a zone
-            upload_layer = "PLANNER" if (FORCE_PLANNER_CATEGORY and center_zone) else ly
-
-            out.append(make_row(
-                "INSERT", "count", 1.0,
-                block_name=name,
-                layer=upload_layer,
-                handle=getattr(ins.dxf, "handle", ""),
-                bbox_length=L_out, bbox_width=W_out,
-                preview_b64=preview_cache.get(name, ""),
-                zone=center_zone,
-                category1=(ly or "").strip().lower(),
-                remarks="",
-                description=desc_txt
-            ))
-        except Exception as ex:
-            logging.exception("INSERT failed: %s", ex)
-
-    return out
-
-
-
-def _normalize_poly(poly: list[tuple[float, float]]) -> list[tuple[float, float]]:
-    """Remove duplicate consecutive points + drop explicit closing point for stable PIP."""
-    if not poly:
-        return poly
-
-    cleaned = []
-    for x, y in poly:
-        if not cleaned:
-            cleaned.append((x, y))
-        else:
-            px, py = cleaned[-1]
-            if abs(x - px) > 1e-9 or abs(y - py) > 1e-9:
-                cleaned.append((x, y))
-
-    # drop last point if same as first (keep polygon open for point_in_polygon)
-    if len(cleaned) > 2:
-        x0, y0 = cleaned[0]
-        xN, yN = cleaned[-1]
-        if abs(x0 - xN) < 1e-9 and abs(y0 - yN) < 1e-9:
-            cleaned.pop()
-
-    return cleaned
-
-
-def _insert_ref_point(ins) -> Optional[tuple[float, float]]:
-    """Best point to classify an INSERT into a PLANNER zone."""
-    try:
-        ip = getattr(ins.dxf, "insert", None)
-        if ip is not None:
-            return (float(ip.x), float(ip.y))
-    except Exception:
-        pass
-    return None
 
 
 # ===== Layer metrics =====
@@ -1285,15 +1306,10 @@ def sort_rows_for_category_blocks(rows: list[dict]) -> None:
         cat  = _norm_cat(r.get("layer", ""))
         zone = (r.get("zone", "") or "").lower()
         et   = r.get("entity_type", "") or ""
-
-        # ✅ keep types consistent across ALL rows
         et_rank = 1 if et == "LAYER_SUMMARY" else 0
-
         cat1 = (r.get("category1", "") or "").lower()
         boq  = (r.get("block_name", "") or "").lower()
-
         return (cat, et_rank, zone, cat1, boq)
-
     rows.sort(key=_key)
 
 
@@ -1353,7 +1369,6 @@ def push_rows_to_webapp(rows: list[dict], webapp_url: str, spreadsheet_id: str,
                     raise
                 time.sleep(backoff ** attempt)
 
-    # ✅ keep track across batches so we don't send duplicate previews
     seen_preview_boq: set[str] = set()
 
     total = len(rows); sent = 0
@@ -1453,10 +1468,15 @@ def collect_dxf_files(path: Path, recursive: bool) -> List[Path]:
 def derive_out_path(dxf_path: Path, out_dir: Path | None) -> Path:
     return (out_dir / f"{dxf_path.stem}_raw_extract.csv") if out_dir else dxf_path.with_name(f"{dxf_path.stem}_raw_extract.csv")
 
-def process_one_dxf(dxf_path: Path, out_dir: Path | None,
-                    target_units: str, include_xrefs: bool,
-                    layer_metrics: bool, aggregate_inserts: bool,
-                    unitless_units: str) -> list[dict]:
+def process_one_dxf(
+    dxf_path: Path,
+    out_dir: Path | None,
+    target_units: str,
+    include_xrefs: bool,
+    layer_metrics: bool,
+    aggregate_inserts: bool,
+    unitless_units: str
+) -> list[dict]:
     logging.info("Processing DXF: %s", dxf_path)
 
     try:
@@ -1469,22 +1489,22 @@ def process_one_dxf(dxf_path: Path, out_dir: Path | None,
     logging.info("DWG $INSUNITS: %s", doc.header.get("$INSUNITS", "n/a"))
     scale_to_m = units_scale_to_meters(doc, unitless_units=unitless_units)
 
-    preview_cache = _build_preview_cache(msp) if ENABLE_PREVIEWS else {}
     zones = _collect_planner_zones(msp)
 
     rows: list[dict] = []
-    insert_rows = iter_block_rows(msp, include_xrefs, scale_to_m, target_units, preview_cache, zones)
 
-    # ✅ FIXED AGGREGATION (this is what fixes wrong counts)
-    # Group by: (BOQ name, upload category, category1(original layer), zone)
+    # 1) parse INSERTs WITHOUT previews + keep representative insert per name
+    insert_rows, rep_inserts = iter_block_rows(msp, include_xrefs, scale_to_m, target_units, zones)
+
+    # 2) aggregate
     if aggregate_inserts:
         groups: Dict[tuple[str, str, str, str], dict] = {}
 
         for r in insert_rows:
             key = (
                 (r.get("block_name") or "").strip(),
-                (r.get("layer") or "").strip(),                  # already PLANNER only if zoned
-                (r.get("category1") or "").strip().lower(),      # keep layers separate
+                (r.get("layer") or "").strip(),
+                (r.get("category1") or "").strip().lower(),
                 (r.get("zone") or "").strip(),
             )
 
@@ -1492,7 +1512,6 @@ def process_one_dxf(dxf_path: Path, out_dir: Path | None,
                 "count": 0,
                 "xs": [],
                 "ys": [],
-                "preview": r.get("preview_b64",""),
                 "desc": r.get("description",""),
             })
 
@@ -1508,6 +1527,26 @@ def process_one_dxf(dxf_path: Path, out_dir: Path | None,
             if (not g.get("desc")) and r.get("description"):
                 g["desc"] = r.get("description","")
 
+        # 3) DEFERRED PREVIEWS: render ONLY for final unique BOQ names
+        preview_map: Dict[str, str] = {}
+        if ENABLE_PREVIEWS and rep_inserts:
+            needed_names = {name for (name, _layer, _cat1, _zone) in groups.keys() if name}
+            logging.info("Deferred previews: rendering %d unique blocks (target=%sx%s)",
+                         len(needed_names), PREVIEW_TARGET_SIZE, PREVIEW_TARGET_SIZE)
+
+            for name in sorted(needed_names):
+                ins = rep_inserts.get(name)
+                if ins is None:
+                    preview_map[name] = ""
+                    continue
+                preview_map[name] = _render_onepy_preview_base64(doc, ins) or ""
+
+            try:
+                plt.close("all")
+            except Exception:
+                pass
+
+        # build aggregated rows
         for (name, layer, cat1, zone_name), g in groups.items():
             xs = sorted(g["xs"]); ys = sorted(g["ys"])
             bx = xs[len(xs)//2] if xs else None
@@ -1520,12 +1559,13 @@ def process_one_dxf(dxf_path: Path, out_dir: Path | None,
                 handle="",
                 remarks=f"aggregated {g['count']} inserts",
                 bbox_length=bx, bbox_width=by,
-                preview_b64=g.get("preview",""),
+                preview_b64=preview_map.get(name, ""),
                 zone=zone_name,
                 category1=cat1,
                 description=g.get("desc",""),
             ))
     else:
+        # non-aggregated flow: still deferred previews (optional), but usually you keep aggregation on
         rows.extend(insert_rows)
 
     if layer_metrics:
