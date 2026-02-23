@@ -1,0 +1,52 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "C:\\Users\\admin\\Documents\\AUTOCAD_WEBAPP\\DwgExtractPlugin\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{D29C2935-D71E-4F06-91A4-CB2F7144F688}|DwgExtractPlugin\\DwgExtractPlugin.csproj|c:\\users\\admin\\documents\\autocad_webapp\\dwgextractplugin\\dwgextractplugin\\dwgextract.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D29C2935-D71E-4F06-91A4-CB2F7144F688}|DwgExtractPlugin\\DwgExtractPlugin.csproj|solutionrelative:dwgextractplugin\\dwgextract.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{D29C2935-D71E-4F06-91A4-CB2F7144F688}|DwgExtractPlugin\\DwgExtractPlugin.csproj|C:\\Users\\admin\\Documents\\AUTOCAD_WEBAPP\\DwgExtractPlugin\\dwgextractplugin\\form1.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}|Form",
+      "RelativeMoniker": "D:0:0:{D29C2935-D71E-4F06-91A4-CB2F7144F688}|DwgExtractPlugin\\DwgExtractPlugin.csproj|solutionrelative:dwgextractplugin\\form1.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}|Form"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 0,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "DwgExtract.cs",
+              "DocumentMoniker": "C:\\Users\\admin\\Documents\\AUTOCAD_WEBAPP\\DwgExtractPlugin\\DwgExtractPlugin\\DwgExtract.cs",
+              "RelativeDocumentMoniker": "DwgExtractPlugin\\DwgExtract.cs",
+              "ToolTip": "C:\\Users\\admin\\Documents\\AUTOCAD_WEBAPP\\DwgExtractPlugin\\DwgExtractPlugin\\DwgExtract.cs",
+              "RelativeToolTip": "DwgExtractPlugin\\DwgExtract.cs",
+              "ViewState": "AgIAAD0FAAAAAAAAAADwv1gFAAAJAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-02-03T13:15:40.119Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "Form1.cs [Design]",
+              "DocumentMoniker": "C:\\Users\\admin\\Documents\\AUTOCAD_WEBAPP\\DwgExtractPlugin\\DwgExtractPlugin\\Form1.cs",
+              "RelativeDocumentMoniker": "DwgExtractPlugin\\Form1.cs",
+              "ToolTip": "C:\\Users\\admin\\Documents\\AUTOCAD_WEBAPP\\DwgExtractPlugin\\DwgExtractPlugin\\Form1.cs [Design]",
+              "RelativeToolTip": "DwgExtractPlugin\\Form1.cs [Design]",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-02-03T13:13:04.979Z"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

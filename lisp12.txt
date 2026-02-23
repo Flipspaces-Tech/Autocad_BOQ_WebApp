@@ -1,0 +1,360 @@
+;; ============================================================
+;; Dynamic Block Visibility + "Chair count" → JSON (Notepad)
+;; Command: VISJSON
+;;
+;; What it does (simple):
+;; - Scans selected INSERTs (or all INSERTs if none selected)
+;; - For each dynamic block:
+;;     name = EffectiveName (falls back to Name)
+;;     visibility = visibility state string (e.g., "8 Chairs")
+;;     chairs = attempts to read a numeric dynamic property (Chairs/Seats/etc.)
+;;              else counts visible nested INSERTs after dynamic state is applied
+;; - Groups by (name + visibility) and sums chairs
+;; - Writes JSON to a temp file and opens it in Notepad
+;;
+;; Notes:
+;; - Counting visible nested chairs is done by copying the block reference,
+;;   exploding it, and counting only visible nested INSERT entities.
+;; - If your chairs are not INSERTs (e.g., they become lines/arcs),
+;;   then you must rely on a numeric property like "Chairs/Seats".
+;; ============================================================
+
+(vl-load-com)
+
+;; --------------------------
+;; tiny helpers
+;; --------------------------
+(defun _upper (s) (if s (strcase (vl-princ-to-string s)) ""))
+(defun _str   (v) (if v (vl-princ-to-string v) ""))
+(defun _num?  (s / x)
+  (setq s (vl-string-trim " \t\r\n" (if s (vl-princ-to-string s) "")))
+  (if (= s "") nil
+    (progn
+      (setq x (distof s 2))
+      (if x T nil)
+    )
+  )
+)
+
+(defun _json-esc (s / out i ch)
+  (setq s (if s (vl-princ-to-string s) ""))
+  (setq out "" i 1)
+  (while (<= i (strlen s))
+    (setq ch (substr s i 1))
+    (cond
+      ((= ch "\\") (setq out (strcat out "\\\\")))
+      ((= ch "\"") (setq out (strcat out "\\\"")))
+      ((= ch "\n") (setq out (strcat out "\\n")))
+      ((= ch "\r") (setq out (strcat out "\\r")))
+      ((= ch "\t") (setq out (strcat out "\\t")))
+      (T (setq out (strcat out ch)))
+    )
+    (setq i (1+ i))
+  )
+  out
+)
+
+(defun _safe->list (x)
+  ;; x can be VARIANT, SAFEARRAY, LIST, or something else
+  (cond
+    ((= (type x) 'VARIANT) (_safe->list (vlax-variant-value x)))
+    ((= (type x) 'SAFEARRAY) (vlax-safearray->list x))
+    ((= (type x) 'LIST) x)
+    (T nil)
+  )
+)
+
+;; --------------------------
+;; visibility getter (robust)
+;; --------------------------
+(defun _get-visibility (vlaBlk / var arr props p pName pVal vis)
+  ;; returns visibility string or ""
+  (setq vis "")
+  (if (and vlaBlk (= :vlax-true (vla-get-IsDynamicBlock vlaBlk)))
+    (progn
+      (setq var (vl-catch-all-apply 'vlax-invoke (list vlaBlk 'GetDynamicBlockProperties)))
+      (if (not (vl-catch-all-error-p var))
+        (progn
+          (setq props (_safe->list var))
+          (if props
+            (foreach p props
+              (if p
+                (progn
+                  (setq pName (_upper (vlax-get p 'PropertyName)))
+                  (if (wcmatch pName "*VISIBILITY*")
+                    (progn
+                      (setq pVal (vlax-get p 'Value))
+                      (setq vis (_str pVal))
+                    )
+                  )
+                )
+              )
+            )
+          )
+        )
+      )
+    )
+  )
+  vis
+)
+
+;; --------------------------
+;; try read numeric "chair count" property (fast path)
+;; --------------------------
+(defun _get-chaircount-from-dynprops (vlaBlk / var props p pName pVal val out)
+  ;; returns integer or nil
+  (setq out nil)
+  (if (and vlaBlk (= :vlax-true (vla-get-IsDynamicBlock vlaBlk)))
+    (progn
+      (setq var (vl-catch-all-apply 'vlax-invoke (list vlaBlk 'GetDynamicBlockProperties)))
+      (if (not (vl-catch-all-error-p var))
+        (progn
+          (setq props (_safe->list var))
+          (if props
+            (foreach p props
+              (if (and p (null out))
+                (progn
+                  (setq pName (_upper (vlax-get p 'PropertyName)))
+                  ;; common chair/seat count names
+                  (if (or (wcmatch pName "*CHAIR*")
+                          (wcmatch pName "*CHAIRS*")
+                          (wcmatch pName "*SEAT*")
+                          (wcmatch pName "*SEATS*")
+                          (wcmatch pName "*COUNT*")
+                          (wcmatch pName "*QTY*")
+                          (wcmatch pName "*NO*CHAIR*")
+                          (wcmatch pName "*NO*SEAT*")
+                      )
+                    (progn
+                      (setq pVal (vlax-get p 'Value))
+                      (setq val (_str pVal))
+                      (if (_num? val)
+                        (setq out (fix (+ 0.5 (distof val 2))))
+                      )
+                    )
+                  )
+                )
+              )
+            )
+          )
+        )
+      )
+    )
+  )
+  out
+)
+
+;; --------------------------
+;; visibility / entity visibility test
+;; --------------------------
+(defun _layer-visible-p (doc layName / lay)
+  (setq layName (if layName layName ""))
+  (setq lay (vl-catch-all-apply 'vla-item (list (vla-get-Layers doc) layName)))
+  (if (vl-catch-all-error-p lay)
+    T
+    (and (= :vlax-false (vla-get-Lock lay)) ; lock doesn't hide, but keep logic simple
+         (= :vlax-true (vla-get-LayerOn lay))
+         (= :vlax-false (vla-get-Freeze lay))
+    )
+  )
+)
+
+(defun _entity-visible-p (doc vlaEnt / layName)
+  ;; minimal: not on off/frozen layer. (Color/linetype visibility is ignored.)
+  (setq layName (vla-get-Layer vlaEnt))
+  (_layer-visible-p doc layName)
+)
+
+;; --------------------------
+;; explode copy and count nested visible INSERTs
+;; --------------------------
+(defun _count-visible-nested-inserts (vlaBlk / doc spc cp var lst ent c)
+  ;; copies the block reference, explodes it, counts visible nested INSERTs
+  ;; returns integer count
+  (setq c 0)
+  (setq doc (vla-get-Document vlaBlk))
+  (setq spc (vla-get-ModelSpace doc))
+
+  (setq cp (vl-catch-all-apply 'vla-copy (list vlaBlk)))
+  (if (vl-catch-all-error-p cp)
+    0
+    (progn
+      (setq var (vl-catch-all-apply 'vlax-invoke (list cp 'Explode)))
+      (vl-catch-all-apply 'vla-delete (list cp))
+
+      (if (vl-catch-all-error-p var)
+        0
+        (progn
+          (setq lst (_safe->list var))
+          (if lst
+            (foreach ent lst
+              (if (and ent (= "AcDbBlockReference" (vla-get-ObjectName ent)))
+                (if (_entity-visible-p doc ent)
+                  (setq c (1+ c))
+                )
+              )
+              ;; cleanup exploded temp entities to avoid polluting drawing
+              (if ent (vl-catch-all-apply 'vla-delete (list ent)))
+            )
+          )
+          c
+        )
+      )
+    )
+  )
+)
+
+;; --------------------------
+;; effective name getter
+;; --------------------------
+(defun _effective-name (vlaBlk / n)
+  (setq n "")
+  (setq n (vl-catch-all-apply 'vlax-get (list vlaBlk 'EffectiveName)))
+  (if (vl-catch-all-error-p n)
+    (setq n (vla-get-Name vlaBlk))
+  )
+  (_str n)
+)
+
+;; --------------------------
+;; collect inserts (selection or all)
+;; --------------------------
+(defun _collect-blockrefs (/ doc ss lst i e vla)
+  (setq doc (vla-get-ActiveDocument (vlax-get-acad-object)))
+  (setq lst '())
+
+  (prompt "\nSelect blocks (ENTER for all INSERTs): ")
+  (setq ss (ssget '((0 . "INSERT"))))
+
+  (if ss
+    (progn
+      (setq i 0)
+      (while (< i (sslength ss))
+        (setq e (ssname ss i))
+        (setq vla (vlax-ename->vla-object e))
+        (setq lst (cons vla lst))
+        (setq i (1+ i))
+      )
+    )
+    (progn
+      ;; all inserts
+      (setq ss (ssget "X" '((0 . "INSERT"))))
+      (if ss
+        (progn
+          (setq i 0)
+          (while (< i (sslength ss))
+            (setq e (ssname ss i))
+            (setq vla (vlax-ename->vla-object e))
+            (setq lst (cons vla lst))
+            (setq i (1+ i))
+          )
+        )
+      )
+    )
+  )
+
+  (reverse lst)
+)
+
+;; --------------------------
+;; simple assoc list "map" for grouping
+;; key = (name|visibility)
+;; value = chairs sum
+;; --------------------------
+(defun _map-get (m k) (cdr (assoc k m)))
+(defun _map-set (m k v)
+  (if (assoc k m)
+    (subst (cons k v) (assoc k m) m)
+    (cons (cons k v) m)
+  )
+)
+
+;; --------------------------
+;; build JSON string
+;; --------------------------
+(defun _build-json (m / out first k v name vis sep p)
+  ;; m is assoc list: ( ("NAME|VIS" . chairs) ... )
+  (setq out "{\n  \"items\": [\n")
+  (setq first T)
+
+  (foreach p m
+    (setq k (car p))
+    (setq v (cdr p))
+    ;; split "NAME|VIS"
+    (setq sep (vl-string-search "|" k))
+    (setq name (if sep (substr k 1 sep) k))
+    (setq vis  (if sep (substr k (+ sep 2)) ""))
+
+    (if first
+      (setq first nil)
+      (setq out (strcat out ",\n"))
+    )
+
+    (setq out
+      (strcat out
+        "    {"
+        "\"name\":\"" (_json-esc name) "\", "
+        "\"visibility\":\"" (_json-esc vis) "\", "
+        "\"chairs\":" (itoa (max 0 (fix v)))
+        "}"
+      )
+    )
+  )
+
+  (setq out (strcat out "\n  ]\n}\n"))
+  out
+)
+
+;; --------------------------
+;; write file + open in notepad
+;; --------------------------
+(defun _write-and-open-notepad (txt / tmp fn f)
+  (setq tmp (getenv "TEMP"))
+  (if (not tmp) (setq tmp "C:\\Temp"))
+  (setq fn (strcat tmp "\\vis_export.json"))
+
+  (setq f (open fn "w"))
+  (write-line txt f)
+  (close f)
+
+  (startapp "notepad.exe" fn)
+  fn
+)
+
+;; ============================================================
+;; MAIN COMMAND
+;; ============================================================
+(defun c:VISJSON (/ blocks m b name vis chairs k json fn)
+  (setq blocks (_collect-blockrefs))
+  (setq m '())
+
+  (foreach b blocks
+    ;; only dynamic blocks matter for visibility
+    (if (= :vlax-true (vla-get-IsDynamicBlock b))
+      (progn
+        (setq name (_effective-name b))
+        (setq vis (_get-visibility b))
+
+        ;; chairs count:
+        ;; 1) try numeric dyn property
+        ;; 2) else count visible nested inserts (exploded)
+        (setq chairs (_get-chaircount-from-dynprops b))
+        (if (null chairs)
+          (setq chairs (_count-visible-nested-inserts b))
+        )
+
+        (setq k (strcat name "|" vis))
+        (setq m (_map-set m k (+ (if (_map-get m k) (_map-get m k) 0) chairs)))
+      )
+    )
+  )
+
+  ;; reverse for stable output order
+  (setq m (reverse m))
+
+  (setq json (_build-json m))
+  (setq fn (_write-and-open-notepad json))
+
+  (prompt (strcat "\n✅ JSON written to: " fn))
+  (princ)
+)

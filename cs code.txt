@@ -1,0 +1,280 @@
+// VisJsonNet.cs  (C# 7.3 compatible, AutoCAD 2022, x64)
+// References: acmgd.dll, acdbmgd.dll, accoremgd.dll  (Copy Local = False)
+
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.Text;
+
+using Autodesk.AutoCAD.ApplicationServices;
+using Autodesk.AutoCAD.DatabaseServices;
+using Autodesk.AutoCAD.Runtime;
+
+namespace DwgExtractPlugin
+{
+    public class VisJsonNet : IExtensionApplication
+    {
+        public void Initialize() { }
+        public void Terminate() { }
+
+        [CommandMethod("PINGNET")]
+        public void PingNet()
+        {
+            var doc = Autodesk.AutoCAD.ApplicationServices.Core.Application.DocumentManager.MdiActiveDocument;
+            if (doc != null) doc.Editor.WriteMessage("\n✅ PINGNET OK\n");
+        }
+
+        // Run this after NETLOAD:
+        // Command: VISJSONNET
+        [CommandMethod("VISJSONNET")]
+        public void VisJsonNetCommand()
+        {
+            Document doc = Autodesk.AutoCAD.ApplicationServices.Core.Application.DocumentManager.MdiActiveDocument;
+            if (doc == null)
+                throw new System.Exception("No active document (accoreconsole did not provide one).");
+
+            Database db = doc.Database;
+
+            // IMPORTANT: use db.Filename for full path (doc.Name can be just file name in accoreconsole)
+            string dwgFullPath = db.Filename;
+            if (string.IsNullOrWhiteSpace(dwgFullPath))
+                dwgFullPath = doc.Name; // fallback
+
+            string dwgFileName = Path.GetFileName(dwgFullPath);
+
+            // Force output folder
+            string outDir = @"C:\Users\admin\Documents\AUTOCAD_WEBAPP\EXPORTS";
+            Directory.CreateDirectory(outDir);
+
+            string outJson = Path.Combine(outDir, "vis_export.json");
+
+            var grouped = new Dictionary<string, ItemAgg>(StringComparer.OrdinalIgnoreCase);
+
+            int totalInserts = 0;
+            int dynamicProcessed = 0;
+
+            using (Transaction tr = db.TransactionManager.StartTransaction())
+            {
+                ObjectId msId = SymbolUtilityServices.GetBlockModelSpaceId(db);
+                BlockTableRecord ms = (BlockTableRecord)tr.GetObject(msId, OpenMode.ForRead);
+
+                foreach (ObjectId id in ms)
+                {
+                    if (!id.ObjectClass.IsDerivedFrom(RXObject.GetClass(typeof(BlockReference))))
+                        continue;
+
+                    totalInserts++;
+
+                    var br = (BlockReference)tr.GetObject(id, OpenMode.ForRead);
+
+                    // base name (effective name)
+                    string tableName = Safe(GetEffectiveName(tr, br));
+                    if (string.IsNullOrWhiteSpace(tableName))
+                        tableName = Safe(br.Name);
+
+                    // visibility (dynamic blocks only)
+                    string vis = "";
+                    if (br.IsDynamicBlock)
+                    {
+                        dynamicProcessed++;
+                        vis = GetVisibilityState(br);
+                    }
+
+                    // FILTER: only keep those having visibility
+                    if (string.IsNullOrWhiteSpace(vis))
+                        continue;
+
+                    // chair count: 1) dynamic property like Chairs/Seats/Count etc
+                    int chairCount = GetChairCountFromDynProps(br);
+
+                    // 2) fallback: explode and count nested blocks containing "CHAIR"
+                    if (chairCount <= 0)
+                        chairCount = CountNestedChairs(tr, br);
+
+                    // group key
+                    string key = tableName + "||" + vis;
+
+                    ItemAgg agg;
+                    if (!grouped.TryGetValue(key, out agg))
+                    {
+                        agg = new ItemAgg
+                        {
+                            TableName = tableName,
+                            Visibility = vis,
+                            TableCount = 0,
+                            ChairCount = 0
+                        };
+                        grouped[key] = agg;
+                    }
+
+                    agg.TableCount += 1;
+                    agg.ChairCount += chairCount;
+                }
+
+                tr.Commit();
+            }
+
+            // write JSON
+            string json = BuildJson(dwgFileName, totalInserts, dynamicProcessed, grouped.Values.ToList());
+            File.WriteAllText(outJson, json, Encoding.UTF8);
+
+            // print path in console/log
+            var d = Autodesk.AutoCAD.ApplicationServices.Core.Application.DocumentManager.MdiActiveDocument;
+            if (d != null) d.Editor.WriteMessage("\n✅ VISJSONNET wrote: " + outJson + "\n");
+        }
+
+        // ---------- helpers ----------
+
+        private class ItemAgg
+        {
+            public string TableName;
+            public string Visibility;
+            public int TableCount;
+            public int ChairCount;
+        }
+
+        private static string BuildJson(string dwg, int total, int dynProcessed, List<ItemAgg> items)
+        {
+            // keep stable order
+            items = items
+                .OrderBy(x => x.TableName, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => x.Visibility, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var sb = new StringBuilder();
+            sb.Append("{\n");
+            sb.Append("  \"dwg\": ").Append(JsonStr(dwg)).Append(",\n");
+            sb.Append("  \"totalInserts\": ").Append(total.ToString(CultureInfo.InvariantCulture)).Append(",\n");
+            sb.Append("  \"dynamicProcessed\": ").Append(dynProcessed.ToString(CultureInfo.InvariantCulture)).Append(",\n");
+            sb.Append("  \"items\": [\n");
+
+            for (int i = 0; i < items.Count; i++)
+            {
+                var it = items[i];
+                sb.Append("    {\n");
+                sb.Append("      \"tableName\": ").Append(JsonStr(it.TableName)).Append(",\n");
+                sb.Append("      \"visibility\": ").Append(JsonStr(it.Visibility)).Append(",\n");
+                sb.Append("      \"tableCount\": ").Append(it.TableCount.ToString(CultureInfo.InvariantCulture)).Append(",\n");
+                sb.Append("      \"chairCount\": ").Append(it.ChairCount.ToString(CultureInfo.InvariantCulture)).Append("\n");
+                sb.Append("    }");
+                if (i < items.Count - 1) sb.Append(",");
+                sb.Append("\n");
+            }
+
+            sb.Append("  ]\n");
+            sb.Append("}\n");
+            return sb.ToString();
+        }
+
+        private static string JsonStr(string s)
+        {
+            if (s == null) s = "";
+            s = s.Replace("\\", "\\\\").Replace("\"", "\\\"");
+            s = s.Replace("\r", "\\r").Replace("\n", "\\n").Replace("\t", "\\t");
+            return "\"" + s + "\"";
+        }
+
+        private static string Safe(string s) { return s ?? ""; }
+
+        private static string GetEffectiveName(Transaction tr, BlockReference br)
+        {
+            try
+            {
+                if (br.IsDynamicBlock)
+                {
+                    ObjectId btrId = br.DynamicBlockTableRecord;
+                    var btr = (BlockTableRecord)tr.GetObject(btrId, OpenMode.ForRead);
+                    if (btr != null && !string.IsNullOrEmpty(btr.Name))
+                        return btr.Name;
+                }
+            }
+            catch { }
+            return br.Name;
+        }
+
+        private static string GetVisibilityState(BlockReference br)
+        {
+            try
+            {
+                var props = br.DynamicBlockReferencePropertyCollection;
+                foreach (DynamicBlockReferenceProperty p in props)
+                {
+                    if (p == null) continue;
+                    var n = (p.PropertyName ?? "").ToUpperInvariant();
+                    if (n.Contains("VISIBILITY"))
+                    {
+                        return (p.Value != null) ? p.Value.ToString() : "";
+                    }
+                }
+            }
+            catch { }
+            return "";
+        }
+
+        private static int GetChairCountFromDynProps(BlockReference br)
+        {
+            try
+            {
+                if (!br.IsDynamicBlock) return 0;
+
+                var props = br.DynamicBlockReferencePropertyCollection;
+                foreach (DynamicBlockReferenceProperty p in props)
+                {
+                    if (p == null) continue;
+
+                    string n = (p.PropertyName ?? "").ToUpperInvariant();
+                    if (!(n.Contains("CHAIR") || n.Contains("SEAT") || n.Contains("QTY") || n.Contains("COUNT")))
+                        continue;
+
+                    string val = (p.Value != null) ? p.Value.ToString() : "";
+                    int parsed;
+                    if (int.TryParse(val, NumberStyles.Any, CultureInfo.InvariantCulture, out parsed))
+                        return parsed;
+
+                    double d;
+                    if (double.TryParse(val, NumberStyles.Any, CultureInfo.InvariantCulture, out d))
+                        return (int)Math.Round(d);
+                }
+            }
+            catch { }
+            return 0;
+        }
+
+        private static int CountNestedChairs(Transaction tr, BlockReference br)
+        {
+            int count = 0;
+            var objs = new DBObjectCollection();
+
+            try { br.Explode(objs); }
+            catch { return 0; }
+
+            foreach (DBObject o in objs)
+            {
+                try
+                {
+                    var child = o as BlockReference;
+                    if (child != null)
+                    {
+                        string nm = (child.Name ?? "");
+                        if (nm.IndexOf("CHAIR", StringComparison.OrdinalIgnoreCase) >= 0)
+                            count++;
+
+                        child.Dispose();
+                    }
+                    else
+                    {
+                        o.Dispose();
+                    }
+                }
+                catch
+                {
+                    try { o.Dispose(); } catch { }
+                }
+            }
+
+            return count;
+        }
+    }
+}

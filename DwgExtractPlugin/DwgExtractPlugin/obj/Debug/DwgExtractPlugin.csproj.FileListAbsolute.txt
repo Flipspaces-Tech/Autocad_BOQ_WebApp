@@ -1,0 +1,5 @@
+C:\Users\admin\Documents\AUTOCAD_WEBAPP\DwgExtractPlugin\DwgExtractPlugin\obj\Debug\DwgExtractPlugin.csproj.AssemblyReference.cache
+C:\Users\admin\Documents\AUTOCAD_WEBAPP\DwgExtractPlugin\DwgExtractPlugin\obj\Debug\DwgExtractPlugin.Form1.resources
+C:\Users\admin\Documents\AUTOCAD_WEBAPP\DwgExtractPlugin\DwgExtractPlugin\obj\Debug\DwgExtractPlugin.Properties.Resources.resources
+C:\Users\admin\Documents\AUTOCAD_WEBAPP\DwgExtractPlugin\DwgExtractPlugin\obj\Debug\DwgExtractPlugin.csproj.GenerateResource.cache
+C:\Users\admin\Documents\AUTOCAD_WEBAPP\DwgExtractPlugin\DwgExtractPlugin\obj\Debug\DwgExtractPlugin.csproj.CoreCompileInputs.cache

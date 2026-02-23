@@ -1,0 +1,19 @@
+_.SETVAR
+FILEDIA
+0
+_.SETVAR
+CMDECHO
+0
+_.SETVAR
+SECURELOAD
+0
+_.SETVAR
+TRUSTEDPATHS
+C:\Program Files\Autodesk\AutoCAD 2022;C:\Users\admin\Documents\AUTOCAD_WEBAPP
+
+_.NETLOAD
+C:\Users\admin\Documents\AUTOCAD_WEBAPP\DwgExtract.dll
+
+PINGNET
+DWGEXTRACTNET
+QUIT

@@ -1,0 +1,9 @@
+DWGNAME=BLOCK (FURNITURE) MM (1).dwg
+DWGPREFIX=C:\Users\admin\Documents\AUTOCAD_WEBAPP\DXF\
+STEP: tblobjname BLOCK *MODEL_SPACE*
+msBtr=nil
+type(msBtr)=nil
+msBtr nil/T. Trying *Paper_Space* just to check...
+paperBtr=nil
+type(paperBtr)=nil
+STEP: entnext(msBtr)

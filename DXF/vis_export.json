@@ -1,0 +1,31 @@
+﻿{
+  "dwg": "BLOCK (FURNITURE) MM (1).dwg",
+  "totalInserts": 34,
+  "dynamicProcessed": 33,
+  "items": [
+    {
+      "tableName": "DINING TABLE 1",
+      "visibility": "8",
+      "tableCount": 1,
+      "chairCount": 8
+    },
+    {
+      "tableName": "DINING TABLE 1",
+      "visibility": "2",
+      "tableCount": 1,
+      "chairCount": 2
+    },
+    {
+      "tableName": "DINING TABLE 1",
+      "visibility": "4",
+      "tableCount": 1,
+      "chairCount": 4
+    },
+    {
+      "tableName": "DINING TABLE 1",
+      "visibility": "6",
+      "tableCount": 1,
+      "chairCount": 6
+    }
+  ]
+}

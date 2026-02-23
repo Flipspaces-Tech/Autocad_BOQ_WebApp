@@ -1,0 +1,8 @@
+C:\Users\admin\Documents\AUTOCAD_WEBAPP\DwgExtractPlugin\DwgExtractPlugin\bin\x64\x64\DwgExtractPlugin.dll.config
+C:\Users\admin\Documents\AUTOCAD_WEBAPP\DwgExtractPlugin\DwgExtractPlugin\bin\x64\x64\DwgExtractPlugin.dll
+C:\Users\admin\Documents\AUTOCAD_WEBAPP\DwgExtractPlugin\DwgExtractPlugin\obj\x64\x64\DwgExtractPlugin.csproj.AssemblyReference.cache
+C:\Users\admin\Documents\AUTOCAD_WEBAPP\DwgExtractPlugin\DwgExtractPlugin\obj\x64\x64\DwgExtractPlugin.Form1.resources
+C:\Users\admin\Documents\AUTOCAD_WEBAPP\DwgExtractPlugin\DwgExtractPlugin\obj\x64\x64\DwgExtractPlugin.Properties.Resources.resources
+C:\Users\admin\Documents\AUTOCAD_WEBAPP\DwgExtractPlugin\DwgExtractPlugin\obj\x64\x64\DwgExtractPlugin.csproj.GenerateResource.cache
+C:\Users\admin\Documents\AUTOCAD_WEBAPP\DwgExtractPlugin\DwgExtractPlugin\obj\x64\x64\DwgExtractPlugin.csproj.CoreCompileInputs.cache
+C:\Users\admin\Documents\AUTOCAD_WEBAPP\DwgExtractPlugin\DwgExtractPlugin\obj\x64\x64\DwgExtractPlugin.dll
