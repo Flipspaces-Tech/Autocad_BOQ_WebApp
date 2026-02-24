@@ -1,0 +1,40 @@
+﻿{
+  "dwg": "CRED_NEW.dwg",
+  "plannerLayer": "planner",
+  "overall": {
+    "width_ft": 55.8694,
+    "height_ft": 67.726
+  },
+  "zones": [
+    {
+      "name": "Conference",
+      "width_ft": 35.3135,
+      "height_ft": 46.9825,
+      "area_sqft": 1659.117
+    },
+    {
+      "name": "LoungeArea",
+      "width_ft": 16.4983,
+      "height_ft": 26.4018,
+      "area_sqft": 435.586
+    },
+    {
+      "name": "LoungeRoom",
+      "width_ft": 15.8893,
+      "height_ft": 13.0287,
+      "area_sqft": 207.0167
+    },
+    {
+      "name": "MeetingRoom 1",
+      "width_ft": 10.6293,
+      "height_ft": 14.5289,
+      "area_sqft": 154.4313
+    },
+    {
+      "name": "MeetingRoom 2",
+      "width_ft": 12.0805,
+      "height_ft": 14.9774,
+      "area_sqft": 180.9348
+    }
+  ]
+}

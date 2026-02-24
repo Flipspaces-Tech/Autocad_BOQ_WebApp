@@ -2,29 +2,7 @@
   "dwg": "CRED_NEW.dwg",
   "items": [
     {
-      "Product": "CENTER TABLE",
-      "BOQ name": "cxz",
-      "zone": "Unmarked Area",
-      "Config": "",
-      "qty_value": 1,
-      "length (ft)": 2.4167,
-      "width (ft)": 0.1785,
-      "Params": "",
-      "Preview": ""
-    },
-    {
-      "Product": "DECORATIVES",
-      "BOQ name": "Fridge",
-      "zone": "Unmarked Area",
-      "Config": "",
-      "qty_value": 1,
-      "length (ft)": 2.0982,
-      "width (ft)": 1.9608,
-      "Params": "",
-      "Preview": ""
-    },
-    {
-      "Product": "Loose Furniture",
+      "Product": "2 SEATER SOFA",
       "BOQ name": "2 SEATER SOFA",
       "zone": "LoungeArea",
       "Config": "",
@@ -35,7 +13,7 @@
       "Preview": ""
     },
     {
-      "Product": "Loose Furniture",
+      "Product": "2 SEATER SOFA",
       "BOQ name": "2 SEATER SOFA",
       "zone": "LoungeRoom",
       "Config": "",
@@ -46,7 +24,40 @@
       "Preview": ""
     },
     {
-      "Product": "Loose Furniture",
+      "Product": "ALUMINIUM DOOR",
+      "BOQ name": "Door_Aluminium",
+      "zone": "Conference",
+      "Config": "",
+      "qty_value": 2,
+      "length (ft)": 2.0188,
+      "width (ft)": 1.9906,
+      "Params": "",
+      "Preview": ""
+    },
+    {
+      "Product": "ALUMINIUM DOOR",
+      "BOQ name": "Door_Aluminium",
+      "zone": "MeetingRoom 1",
+      "Config": "",
+      "qty_value": 1,
+      "length (ft)": 2.0188,
+      "width (ft)": 1.9906,
+      "Params": "",
+      "Preview": ""
+    },
+    {
+      "Product": "ALUMINIUM DOOR",
+      "BOQ name": "Door_Aluminium",
+      "zone": "misc",
+      "Config": "",
+      "qty_value": 1,
+      "length (ft)": 2.0188,
+      "width (ft)": 1.9906,
+      "Params": "",
+      "Preview": ""
+    },
+    {
+      "Product": "BLINDS",
       "BOQ name": "BLINDS- MEETING ROOM",
       "zone": "MeetingRoom 1",
       "Config": "",
@@ -57,7 +68,7 @@
       "Preview": ""
     },
     {
-      "Product": "Loose Furniture",
+      "Product": "BLINDS",
       "BOQ name": "BLINDS- WAITING AREA",
       "zone": "LoungeArea",
       "Config": "",
@@ -68,7 +79,7 @@
       "Preview": ""
     },
     {
-      "Product": "Loose Furniture",
+      "Product": "BLINDS",
       "BOQ name": "BLINDS- WAITING AREA 2",
       "zone": "LoungeArea",
       "Config": "",
@@ -79,7 +90,7 @@
       "Preview": ""
     },
     {
-      "Product": "Loose Furniture",
+      "Product": "BLINDS",
       "BOQ name": "BLINDS- WAITING AREA 3",
       "zone": "LoungeRoom",
       "Config": "",
@@ -90,7 +101,7 @@
       "Preview": ""
     },
     {
-      "Product": "Loose Furniture",
+      "Product": "BLINDS",
       "BOQ name": "Blinds-Dining1",
       "zone": "Conference",
       "Config": "",
@@ -101,7 +112,7 @@
       "Preview": ""
     },
     {
-      "Product": "Loose Furniture",
+      "Product": "BLINDS",
       "BOQ name": "Blinds-Dining2",
       "zone": "Conference",
       "Config": "",
@@ -112,7 +123,7 @@
       "Preview": ""
     },
     {
-      "Product": "Loose Furniture",
+      "Product": "BLINDS",
       "BOQ name": "BLINDS-MEETING ROOM 2",
       "zone": "MeetingRoom 2",
       "Config": "",
@@ -123,7 +134,7 @@
       "Preview": ""
     },
     {
-      "Product": "Loose Furniture",
+      "Product": "CENTER TABLE",
       "BOQ name": "CENTRE TABLE RECTANGLE",
       "zone": "LoungeArea",
       "Config": "",
@@ -134,7 +145,7 @@
       "Preview": ""
     },
     {
-      "Product": "Loose Furniture",
+      "Product": "CENTER TABLE",
       "BOQ name": "CentreTable_Cyclinde_L4.5ft",
       "zone": "LoungeRoom",
       "Config": "",
@@ -145,40 +156,18 @@
       "Preview": ""
     },
     {
-      "Product": "Loose Furniture",
-      "BOQ name": "CIRCLE PANEL LIGHT",
-      "zone": "Conference",
+      "Product": "CENTER TABLE",
+      "BOQ name": "cxz",
+      "zone": "misc",
       "Config": "",
-      "qty_value": 22,
-      "length (ft)": 0.5,
-      "width (ft)": 0.5,
+      "qty_value": 1,
+      "length (ft)": 2.4167,
+      "width (ft)": 0.1785,
       "Params": "",
       "Preview": ""
     },
     {
-      "Product": "Loose Furniture",
-      "BOQ name": "CIRCLE PANEL LIGHT",
-      "zone": "LoungeArea",
-      "Config": "",
-      "qty_value": 6,
-      "length (ft)": 0.5,
-      "width (ft)": 0.5,
-      "Params": "",
-      "Preview": ""
-    },
-    {
-      "Product": "Loose Furniture",
-      "BOQ name": "CIRCLE PANEL LIGHT",
-      "zone": "LoungeRoom",
-      "Config": "",
-      "qty_value": 4,
-      "length (ft)": 0.5,
-      "width (ft)": 0.5,
-      "Params": "",
-      "Preview": ""
-    },
-    {
-      "Product": "Loose Furniture",
+      "Product": "CUSTOM CARPENTERY",
       "BOQ name": "CrockeryStorage",
       "zone": "Conference",
       "Config": "",
@@ -189,117 +178,7 @@
       "Preview": ""
     },
     {
-      "Product": "Loose Furniture",
-      "BOQ name": "DiningChair",
-      "zone": "Conference",
-      "Config": "",
-      "qty_value": 20,
-      "length (ft)": 1.8903,
-      "width (ft)": 1.518,
-      "Params": "",
-      "Preview": ""
-    },
-    {
-      "Product": "Loose Furniture",
-      "BOQ name": "DiningTable-20seater",
-      "zone": "Conference",
-      "Config": "",
-      "qty_value": 1,
-      "length (ft)": 22.6449,
-      "width (ft)": 4.6995,
-      "Params": "",
-      "Preview": ""
-    },
-    {
-      "Product": "Loose Furniture",
-      "BOQ name": "Door_Aluminium",
-      "zone": "Conference",
-      "Config": "",
-      "qty_value": 2,
-      "length (ft)": 2.0188,
-      "width (ft)": 1.9906,
-      "Params": "",
-      "Preview": ""
-    },
-    {
-      "Product": "Loose Furniture",
-      "BOQ name": "Door_Aluminium",
-      "zone": "MeetingRoom 1",
-      "Config": "",
-      "qty_value": 1,
-      "length (ft)": 2.0188,
-      "width (ft)": 1.9906,
-      "Params": "",
-      "Preview": ""
-    },
-    {
-      "Product": "Loose Furniture",
-      "BOQ name": "Door_Flush",
-      "zone": "Conference",
-      "Config": "",
-      "qty_value": 1,
-      "length (ft)": 3.0187,
-      "width (ft)": 2.9765,
-      "Params": "",
-      "Preview": ""
-    },
-    {
-      "Product": "Loose Furniture",
-      "BOQ name": "Door_Flush",
-      "zone": "MeetingRoom 1",
-      "Config": "",
-      "qty_value": 1,
-      "length (ft)": 3.0187,
-      "width (ft)": 2.9765,
-      "Params": "",
-      "Preview": ""
-    },
-    {
-      "Product": "Loose Furniture",
-      "BOQ name": "GLASS DOOR",
-      "zone": "Conference",
-      "Config": "",
-      "qty_value": 3,
-      "length (ft)": 3.0162,
-      "width (ft)": 2.9741,
-      "Params": "",
-      "Preview": ""
-    },
-    {
-      "Product": "Loose Furniture",
-      "BOQ name": "GLASS DOOR",
-      "zone": "LoungeRoom",
-      "Config": "",
-      "qty_value": 1,
-      "length (ft)": 3.0162,
-      "width (ft)": 2.9741,
-      "Params": "",
-      "Preview": ""
-    },
-    {
-      "Product": "Loose Furniture",
-      "BOQ name": "GLASS DOOR",
-      "zone": "MeetingRoom 1",
-      "Config": "",
-      "qty_value": 1,
-      "length (ft)": 3.0162,
-      "width (ft)": 2.9741,
-      "Params": "",
-      "Preview": ""
-    },
-    {
-      "Product": "Loose Furniture",
-      "BOQ name": "GLASS DOOR",
-      "zone": "MeetingRoom 2",
-      "Config": "",
-      "qty_value": 1,
-      "length (ft)": 3.0162,
-      "width (ft)": 2.9741,
-      "Params": "",
-      "Preview": ""
-    },
-    {
-      "Product": "Loose Furniture",
+      "Product": "CUSTOM CARPENTERY",
       "BOQ name": "HandwashArea",
       "zone": "Conference",
       "Config": "",
@@ -310,150 +189,7 @@
       "Preview": ""
     },
     {
-      "Product": "Loose Furniture",
-      "BOQ name": "HangingLightPill",
-      "zone": "LoungeRoom",
-      "Config": "",
-      "qty_value": 1,
-      "length (ft)": 5.5357,
-      "width (ft)": 2.5161,
-      "Params": "",
-      "Preview": ""
-    },
-    {
-      "Product": "Loose Furniture",
-      "BOQ name": "LightAcousticPill",
-      "zone": "MeetingRoom 2",
-      "Config": "",
-      "qty_value": 1,
-      "length (ft)": 3.6703,
-      "width (ft)": 1,
-      "Params": "",
-      "Preview": ""
-    },
-    {
-      "Product": "Loose Furniture",
-      "BOQ name": "LightHangingTriangle",
-      "zone": "MeetingRoom 1",
-      "Config": "",
-      "qty_value": 1,
-      "length (ft)": 1.2661,
-      "width (ft)": 1.2178,
-      "Params": "",
-      "Preview": ""
-    },
-    {
-      "Product": "Loose Furniture",
-      "BOQ name": "LoungeChair",
-      "zone": "LoungeRoom",
-      "Config": "",
-      "qty_value": 2,
-      "length (ft)": 2.73,
-      "width (ft)": 2.6289,
-      "Params": "",
-      "Preview": ""
-    },
-    {
-      "Product": "Loose Furniture",
-      "BOQ name": "MEETING ROOM TABLE - 6 SEAT",
-      "zone": "MeetingRoom 2",
-      "Config": "",
-      "qty_value": 1,
-      "length (ft)": 8,
-      "width (ft)": 3,
-      "Params": "",
-      "Preview": ""
-    },
-    {
-      "Product": "Loose Furniture",
-      "BOQ name": "MEETING ROOM TABLE - 6 SEATER",
-      "zone": "MeetingRoom 1",
-      "Config": "",
-      "qty_value": 1,
-      "length (ft)": 5.0144,
-      "width (ft)": 2.5289,
-      "Params": "",
-      "Preview": ""
-    },
-    {
-      "Product": "Loose Furniture",
-      "BOQ name": "MEETING ROOM TABLE - 6 SEATER - RECTANGLE",
-      "zone": "MeetingRoom 1",
-      "Config": "",
-      "qty_value": 4,
-      "length (ft)": 2.2245,
-      "width (ft)": 2.0118,
-      "Params": "",
-      "Preview": ""
-    },
-    {
-      "Product": "Loose Furniture",
-      "BOQ name": "MEETING ROOM TABLE - 6 SEATER - RECTANGLE",
-      "zone": "MeetingRoom 2",
-      "Config": "",
-      "qty_value": 6,
-      "length (ft)": 2.2245,
-      "width (ft)": 2.0118,
-      "Params": "",
-      "Preview": ""
-    },
-    {
-      "Product": "Loose Furniture",
-      "BOQ name": "OrbitDrumCeilingLight",
-      "zone": "LoungeArea",
-      "Config": "",
-      "qty_value": 2,
-      "length (ft)": 2.5,
-      "width (ft)": 2.5,
-      "Params": "",
-      "Preview": ""
-    },
-    {
-      "Product": "Loose Furniture",
-      "BOQ name": "OrbitRingLight",
-      "zone": "Conference",
-      "Config": "",
-      "qty_value": 3,
-      "length (ft)": 1.9818,
-      "width (ft)": 1.9818,
-      "Params": "",
-      "Preview": ""
-    },
-    {
-      "Product": "Loose Furniture",
-      "BOQ name": "PLANTER  - BIG",
-      "zone": "Conference",
-      "Config": "",
-      "qty_value": 1,
-      "length (ft)": 2.6001,
-      "width (ft)": 2.4781,
-      "Params": "",
-      "Preview": ""
-    },
-    {
-      "Product": "Loose Furniture",
-      "BOQ name": "PLANTER  - BIG",
-      "zone": "LoungeArea",
-      "Config": "",
-      "qty_value": 1,
-      "length (ft)": 2.6001,
-      "width (ft)": 2.4781,
-      "Params": "",
-      "Preview": ""
-    },
-    {
-      "Product": "Loose Furniture",
-      "BOQ name": "PLANTER  - BIG",
-      "zone": "LoungeRoom",
-      "Config": "",
-      "qty_value": 1,
-      "length (ft)": 2.6001,
-      "width (ft)": 2.4781,
-      "Params": "",
-      "Preview": ""
-    },
-    {
-      "Product": "Loose Furniture",
+      "Product": "CUSTOM CARPENTERY",
       "BOQ name": "ServiceCounter",
       "zone": "Conference",
       "Config": "",
@@ -464,18 +200,51 @@
       "Preview": ""
     },
     {
-      "Product": "Loose Furniture",
-      "BOQ name": "SIDE TABLE",
-      "zone": "LoungeArea",
+      "Product": "DECORATIVES",
+      "BOQ name": "Fridge",
+      "zone": "misc",
       "Config": "",
-      "qty_value": 4,
-      "length (ft)": 1.25,
-      "width (ft)": 1.25,
+      "qty_value": 1,
+      "length (ft)": 2.0982,
+      "width (ft)": 1.9608,
       "Params": "",
       "Preview": ""
     },
     {
-      "Product": "Loose Furniture",
+      "Product": "DECORATIVES",
+      "BOQ name": "PLANTER  - BIG",
+      "zone": "Conference",
+      "Config": "",
+      "qty_value": 1,
+      "length (ft)": 2.6001,
+      "width (ft)": 2.4781,
+      "Params": "",
+      "Preview": ""
+    },
+    {
+      "Product": "DECORATIVES",
+      "BOQ name": "PLANTER  - BIG",
+      "zone": "LoungeArea",
+      "Config": "",
+      "qty_value": 1,
+      "length (ft)": 2.6001,
+      "width (ft)": 2.4781,
+      "Params": "",
+      "Preview": ""
+    },
+    {
+      "Product": "DECORATIVES",
+      "BOQ name": "PLANTER  - BIG",
+      "zone": "LoungeRoom",
+      "Config": "",
+      "qty_value": 1,
+      "length (ft)": 2.6001,
+      "width (ft)": 2.4781,
+      "Params": "",
+      "Preview": ""
+    },
+    {
+      "Product": "DECORATIVES",
       "BOQ name": "SINK",
       "zone": "Conference",
       "Config": "",
@@ -486,7 +255,172 @@
       "Preview": ""
     },
     {
-      "Product": "Loose Furniture",
+      "Product": "GLASS DOOR",
+      "BOQ name": "GLASS DOOR",
+      "zone": "Conference",
+      "Config": "",
+      "qty_value": 3,
+      "length (ft)": 3.0162,
+      "width (ft)": 2.9741,
+      "Params": "",
+      "Preview": ""
+    },
+    {
+      "Product": "GLASS DOOR",
+      "BOQ name": "GLASS DOOR",
+      "zone": "LoungeRoom",
+      "Config": "",
+      "qty_value": 1,
+      "length (ft)": 3.0162,
+      "width (ft)": 2.9741,
+      "Params": "",
+      "Preview": ""
+    },
+    {
+      "Product": "GLASS DOOR",
+      "BOQ name": "GLASS DOOR",
+      "zone": "MeetingRoom 1",
+      "Config": "",
+      "qty_value": 1,
+      "length (ft)": 3.0162,
+      "width (ft)": 2.9741,
+      "Params": "",
+      "Preview": ""
+    },
+    {
+      "Product": "GLASS DOOR",
+      "BOQ name": "GLASS DOOR",
+      "zone": "MeetingRoom 2",
+      "Config": "",
+      "qty_value": 1,
+      "length (ft)": 3.0162,
+      "width (ft)": 2.9741,
+      "Params": "",
+      "Preview": ""
+    },
+    {
+      "Product": "GLASS DOOR",
+      "BOQ name": "GLASS DOOR",
+      "zone": "misc",
+      "Config": "",
+      "qty_value": 2,
+      "length (ft)": 3.0162,
+      "width (ft)": 2.9741,
+      "Params": "",
+      "Preview": ""
+    },
+    {
+      "Product": "HIGH BACK CHAIR",
+      "BOQ name": "DiningChair",
+      "zone": "Conference",
+      "Config": "",
+      "qty_value": 20,
+      "length (ft)": 1.8903,
+      "width (ft)": 1.518,
+      "Params": "",
+      "Preview": ""
+    },
+    {
+      "Product": "HIGH BACK CHAIR",
+      "BOQ name": "LoungeChair",
+      "zone": "LoungeRoom",
+      "Config": "",
+      "qty_value": 2,
+      "length (ft)": 2.73,
+      "width (ft)": 2.6289,
+      "Params": "",
+      "Preview": ""
+    },
+    {
+      "Product": "HIGH BACK CHAIR",
+      "BOQ name": "MEETING ROOM TABLE - 6 SEATER - RECTANGLE",
+      "zone": "MeetingRoom 1",
+      "Config": "",
+      "qty_value": 4,
+      "length (ft)": 2.2245,
+      "width (ft)": 2.0118,
+      "Params": "",
+      "Preview": ""
+    },
+    {
+      "Product": "HIGH BACK CHAIR",
+      "BOQ name": "MEETING ROOM TABLE - 6 SEATER - RECTANGLE",
+      "zone": "MeetingRoom 2",
+      "Config": "",
+      "qty_value": 6,
+      "length (ft)": 2.2245,
+      "width (ft)": 2.0118,
+      "Params": "",
+      "Preview": ""
+    },
+    {
+      "Product": "LIGHT",
+      "BOQ name": "CIRCLE PANEL LIGHT",
+      "zone": "Conference",
+      "Config": "",
+      "qty_value": 22,
+      "length (ft)": 0.5,
+      "width (ft)": 0.5,
+      "Params": "",
+      "Preview": ""
+    },
+    {
+      "Product": "LIGHT",
+      "BOQ name": "CIRCLE PANEL LIGHT",
+      "zone": "LoungeArea",
+      "Config": "",
+      "qty_value": 6,
+      "length (ft)": 0.5,
+      "width (ft)": 0.5,
+      "Params": "",
+      "Preview": ""
+    },
+    {
+      "Product": "LIGHT",
+      "BOQ name": "CIRCLE PANEL LIGHT",
+      "zone": "LoungeRoom",
+      "Config": "",
+      "qty_value": 4,
+      "length (ft)": 0.5,
+      "width (ft)": 0.5,
+      "Params": "",
+      "Preview": ""
+    },
+    {
+      "Product": "LIGHT",
+      "BOQ name": "CIRCLE PANEL LIGHT",
+      "zone": "misc",
+      "Config": "",
+      "qty_value": 21,
+      "length (ft)": 0.5,
+      "width (ft)": 0.5,
+      "Params": "",
+      "Preview": ""
+    },
+    {
+      "Product": "LIGHT",
+      "BOQ name": "HangingLightPill",
+      "zone": "LoungeRoom",
+      "Config": "",
+      "qty_value": 1,
+      "length (ft)": 5.5357,
+      "width (ft)": 2.5161,
+      "Params": "",
+      "Preview": ""
+    },
+    {
+      "Product": "LIGHT",
+      "BOQ name": "OrbitRingLight",
+      "zone": "Conference",
+      "Config": "",
+      "qty_value": 3,
+      "length (ft)": 1.9818,
+      "width (ft)": 1.9818,
+      "Params": "",
+      "Preview": ""
+    },
+    {
+      "Product": "LIGHT",
       "BOQ name": "SPOT LIGHT",
       "zone": "MeetingRoom 1",
       "Config": "",
@@ -497,7 +431,7 @@
       "Preview": ""
     },
     {
-      "Product": "Loose Furniture",
+      "Product": "LIGHT",
       "BOQ name": "SPOT LIGHT",
       "zone": "MeetingRoom 2",
       "Config": "",
@@ -508,29 +442,7 @@
       "Preview": ""
     },
     {
-      "Product": "Loose Furniture",
-      "BOQ name": "START",
-      "zone": "Conference",
-      "Config": "",
-      "qty_value": 1,
-      "length (ft)": 2,
-      "width (ft)": 2,
-      "Params": "",
-      "Preview": ""
-    },
-    {
-      "Product": "Loose Furniture",
-      "BOQ name": "STRG",
-      "zone": "MeetingRoom 2",
-      "Config": "",
-      "qty_value": 1,
-      "length (ft)": 11.823,
-      "width (ft)": 1.5055,
-      "Params": "",
-      "Preview": ""
-    },
-    {
-      "Product": "Loose Furniture",
+      "Product": "LIGHT",
       "BOQ name": "TRACK LIGHT",
       "zone": "LoungeArea",
       "Config": "",
@@ -541,51 +453,29 @@
       "Preview": ""
     },
     {
-      "Product": "Loose Furniture",
-      "BOQ name": "WallFrame2.5ft",
-      "zone": "Conference",
-      "Config": "",
-      "qty_value": 1,
-      "length (ft)": 2.5,
-      "width (ft)": 0.0833,
-      "Params": "",
-      "Preview": ""
-    },
-    {
-      "Product": "Loose Furniture",
-      "BOQ name": "WallFrame2ft",
-      "zone": "LoungeRoom",
-      "Config": "",
-      "qty_value": 3,
-      "length (ft)": 2.0003,
-      "width (ft)": 0.0388,
-      "Params": "",
-      "Preview": ""
-    },
-    {
-      "Product": "Loose Furniture",
-      "BOQ name": "WallFrame2ft",
-      "zone": "MeetingRoom 1",
-      "Config": "",
-      "qty_value": 3,
-      "length (ft)": 2.0003,
-      "width (ft)": 0.0388,
-      "Params": "",
-      "Preview": ""
-    },
-    {
-      "Product": "Loose Furniture",
-      "BOQ name": "WallFrame2ft",
+      "Product": "MEETING ROOM TABLE",
+      "BOQ name": "MEETING ROOM TABLE - 6 SEAT",
       "zone": "MeetingRoom 2",
       "Config": "",
-      "qty_value": 3,
-      "length (ft)": 2.0003,
-      "width (ft)": 0.0388,
+      "qty_value": 1,
+      "length (ft)": 8,
+      "width (ft)": 3,
       "Params": "",
       "Preview": ""
     },
     {
-      "Product": "Loose Furniture",
+      "Product": "MEETING ROOM TABLE",
+      "BOQ name": "MEETING ROOM TABLE - 6 SEATER",
+      "zone": "MeetingRoom 1",
+      "Config": "",
+      "qty_value": 1,
+      "length (ft)": 5.0144,
+      "width (ft)": 2.5289,
+      "Params": "",
+      "Preview": ""
+    },
+    {
+      "Product": "RESTROOM",
       "BOQ name": "WashBasin_Round",
       "zone": "Conference",
       "Config": "",
@@ -596,7 +486,18 @@
       "Preview": ""
     },
     {
-      "Product": "Loose Furniture",
+      "Product": "RESTROOM",
+      "BOQ name": "WashBasin_Round",
+      "zone": "misc",
+      "Config": "",
+      "qty_value": 1,
+      "length (ft)": 1.7369,
+      "width (ft)": 1.5561,
+      "Params": "",
+      "Preview": ""
+    },
+    {
+      "Product": "RESTROOM",
       "BOQ name": "WC",
       "zone": "Conference",
       "Config": "",
@@ -607,13 +508,178 @@
       "Preview": ""
     },
     {
+      "Product": "RESTROOM",
+      "BOQ name": "WC",
+      "zone": "misc",
+      "Config": "",
+      "qty_value": 2,
+      "length (ft)": 1.9822,
+      "width (ft)": 1.3059,
+      "Params": "",
+      "Preview": ""
+    },
+    {
+      "Product": "SIDE TABLE",
+      "BOQ name": "SIDE TABLE",
+      "zone": "LoungeArea",
+      "Config": "",
+      "qty_value": 4,
+      "length (ft)": 1.25,
+      "width (ft)": 1.25,
+      "Params": "",
+      "Preview": ""
+    },
+    {
+      "Product": "SOLID FLUSH DOOR",
+      "BOQ name": "Door_Flush",
+      "zone": "Conference",
+      "Config": "",
+      "qty_value": 1,
+      "length (ft)": 3.0187,
+      "width (ft)": 2.9765,
+      "Params": "",
+      "Preview": ""
+    },
+    {
+      "Product": "SOLID FLUSH DOOR",
+      "BOQ name": "Door_Flush",
+      "zone": "MeetingRoom 1",
+      "Config": "",
+      "qty_value": 1,
+      "length (ft)": 3.0187,
+      "width (ft)": 2.9765,
+      "Params": "",
+      "Preview": ""
+    },
+    {
+      "Product": "SOLID FLUSH DOOR",
+      "BOQ name": "Door_Flush",
+      "zone": "misc",
+      "Config": "",
+      "qty_value": 1,
+      "length (ft)": 3.0187,
+      "width (ft)": 2.9765,
+      "Params": "",
+      "Preview": ""
+    },
+    {
+      "Product": "START_FS",
+      "BOQ name": "START",
+      "zone": "Conference",
+      "Config": "",
+      "qty_value": 1,
+      "length (ft)": 2,
+      "width (ft)": 2,
+      "Params": "",
+      "Preview": ""
+    },
+    {
       "Product": "STORAGE",
       "BOQ name": "REWSAQ",
-      "zone": "Unmarked Area",
+      "zone": "misc",
       "Config": "",
       "qty_value": 1,
       "length (ft)": 2.1819,
       "width (ft)": 2.0003,
+      "Params": "",
+      "Preview": ""
+    },
+    {
+      "Product": "STORAGE",
+      "BOQ name": "STRG",
+      "zone": "MeetingRoom 2",
+      "Config": "",
+      "qty_value": 1,
+      "length (ft)": 11.823,
+      "width (ft)": 1.5055,
+      "Params": "",
+      "Preview": ""
+    },
+    {
+      "Product": "WALL FRAME",
+      "BOQ name": "WallFrame2.5ft",
+      "zone": "Conference",
+      "Config": "",
+      "qty_value": 1,
+      "length (ft)": 2.5,
+      "width (ft)": 0.0833,
+      "Params": "",
+      "Preview": ""
+    },
+    {
+      "Product": "WALL FRAME",
+      "BOQ name": "WallFrame2ft",
+      "zone": "LoungeRoom",
+      "Config": "",
+      "qty_value": 3,
+      "length (ft)": 2.0003,
+      "width (ft)": 0.0388,
+      "Params": "",
+      "Preview": ""
+    },
+    {
+      "Product": "WALL FRAME",
+      "BOQ name": "WallFrame2ft",
+      "zone": "MeetingRoom 1",
+      "Config": "",
+      "qty_value": 3,
+      "length (ft)": 2.0003,
+      "width (ft)": 0.0388,
+      "Params": "",
+      "Preview": ""
+    },
+    {
+      "Product": "WALL FRAME",
+      "BOQ name": "WallFrame2ft",
+      "zone": "MeetingRoom 2",
+      "Config": "",
+      "qty_value": 3,
+      "length (ft)": 2.0003,
+      "width (ft)": 0.0388,
+      "Params": "",
+      "Preview": ""
+    },
+    {
+      "Product": "WALLPAPER_DININGROOM",
+      "BOQ name": "LightAcousticPill",
+      "zone": "MeetingRoom 2",
+      "Config": "",
+      "qty_value": 1,
+      "length (ft)": 3.6703,
+      "width (ft)": 1,
+      "Params": "",
+      "Preview": ""
+    },
+    {
+      "Product": "WALLPAPER_DININGROOM",
+      "BOQ name": "LightHangingTriangle",
+      "zone": "MeetingRoom 1",
+      "Config": "",
+      "qty_value": 1,
+      "length (ft)": 1.2661,
+      "width (ft)": 1.2178,
+      "Params": "",
+      "Preview": ""
+    },
+    {
+      "Product": "WALLPAPER_DININGROOM",
+      "BOQ name": "OrbitDrumCeilingLight",
+      "zone": "LoungeArea",
+      "Config": "",
+      "qty_value": 2,
+      "length (ft)": 2.5,
+      "width (ft)": 2.5,
+      "Params": "",
+      "Preview": ""
+    },
+    {
+      "Product": "Workstation",
+      "BOQ name": "DiningTable-20seater",
+      "zone": "Conference",
+      "Config": "",
+      "qty_value": 1,
+      "length (ft)": 22.6449,
+      "width (ft)": 4.6995,
       "Params": "",
       "Preview": ""
     }

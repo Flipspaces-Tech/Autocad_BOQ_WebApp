@@ -2,28 +2,16 @@
 // References: acmgd.dll, acdbmgd.dll, accoremgd.dll  (Copy Local = False)
 //
 // ✅ Outputs:
-//   1) vis_export_visibility.json   (same as before)
-//   2) vis_export_all.json          (same as before)
-//   3) vis_export_zone_rows.csv     (same as before, optional)
-//   4) ✅ vis_export_sheet_like.json  (NEW)  <-- for Google Sheets uploader
+//   1) vis_export_visibility.json        (same)
+//   2) vis_export_all.json               (same)
+//   3) vis_export_zone_rows.csv          (same, optional)
+//   4) vis_export_sheet_like.json        (same)  <-- blocks (INSERTs)
+//   5) vis_export_planner_dims.json      (same)  <-- planner dims
+//   6) vis_export_layers_sheet_like.json (NEW)   <-- NON-BLOCK entities aggregated by (zone, layer)
 //
-// “sheet-like” JSON schema:
-// {
-//   "dwg": "...",
-//   "items": [
-//      {
-//        "Product": "...",
-//        "BOQ name": "...",
-//        "zone": "...",
-//        "Config": "RADIUS=900; Visibility1=2",
-//        "qty_value": 1,
-//        "length (ft)": 2.4167,
-//        "width (ft)": 0.1785,
-//        "Params": "d1=1.97, d2=1.97",
-//        "Preview": ""
-//      }
-//   ]
-// }
+// ✅ NEW RULE (your request):
+//   - Any zone == "" OR "Unmarked Area"  -> "misc"
+//   - Applies to BOTH sheet_like + layers outputs
 
 using System;
 using System.Collections.Generic;
@@ -32,6 +20,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 
+using Autodesk.AutoCAD.ApplicationServices.Core;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.Geometry;
 using Autodesk.AutoCAD.Runtime;
@@ -46,14 +35,14 @@ namespace DwgExtractPlugin
         [CommandMethod("PINGNET")]
         public void PingNet()
         {
-            var doc = Autodesk.AutoCAD.ApplicationServices.Core.Application.DocumentManager.MdiActiveDocument;
+            var doc = Application.DocumentManager.MdiActiveDocument;
             if (doc != null) doc.Editor.WriteMessage("\n✅ PINGNET OK\n");
         }
 
         [CommandMethod("VISJSONNET")]
         public void VisJsonNetCommand()
         {
-            var doc = Autodesk.AutoCAD.ApplicationServices.Core.Application.DocumentManager.MdiActiveDocument;
+            var doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null)
                 throw new System.Exception("No active document.");
 
@@ -70,12 +59,12 @@ namespace DwgExtractPlugin
 
             string outJsonVisibility = Path.Combine(outDir, "vis_export_visibility.json");
             string outJsonAll = Path.Combine(outDir, "vis_export_all.json");
-
-            // ✅ NEW: “sheet-like” JSON
             string outJsonSheetLike = Path.Combine(outDir, "vis_export_sheet_like.json");
-
-            // (optional) keep your old zone-rows file too
             string outCsvZoneRows = Path.Combine(outDir, "vis_export_zone_rows.csv");
+            string outJsonPlannerDims = Path.Combine(outDir, "vis_export_planner_dims.json");
+
+            // ✅ NEW
+            string outJsonLayersSheetLike = Path.Combine(outDir, "vis_export_layers_sheet_like.json");
 
             double unitToFt = GetScaleToFeet(db);
 
@@ -86,14 +75,30 @@ namespace DwgExtractPlugin
             int dynamicProcessed = 0;
             int visKept = 0;
 
+            PlannerDims plannerDims = null;
+
+            // ✅ NEW: non-block layer metrics aggregates (zone, layer)
+            var layerAgg = new Dictionary<ZoneLayerKey, LayerAgg>();
+
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
                 ObjectId msId = SymbolUtilityServices.GetBlockModelSpaceId(db);
                 BlockTableRecord ms = (BlockTableRecord)tr.GetObject(msId, OpenMode.ForRead);
 
-                // ✅ Build zones from PLANNER (INSERT bboxes + closed polylines + text labels)
+                // Build zones from PLANNER/planner
                 var zones = CollectPlannerZones(tr, ms);
 
+                // Create layer "planner" + move all entities from PLANNER → planner
+                EnsureLayerExists(tr, db, "planner");
+                MoveLayerContents(tr, ms, "PLANNER", "planner");
+
+                // Compute planner dims from zone polygons
+                plannerDims = ComputePlannerDims(zones, unitToFt);
+
+                // ✅ NEW: compute NON-BLOCK entities layer metrics
+                ComputeNonBlockLayerMetrics(tr, ms, zones, unitToFt, layerAgg);
+
+                // ---------------- Existing INSERT loops ----------------
                 foreach (ObjectId id in ms)
                 {
                     if (!id.ObjectClass.IsDerivedFrom(RXObject.GetClass(typeof(BlockReference))))
@@ -102,7 +107,7 @@ namespace DwgExtractPlugin
                     var br = (BlockReference)tr.GetObject(id, OpenMode.ForRead);
                     if (br == null) continue;
 
-                    // Skip the PLANNER block refs themselves (they define zones)
+                    // Skip planner content blocks refs (they define zones)
                     if (IsPlannerLayer(br.Layer))
                         continue;
 
@@ -112,22 +117,21 @@ namespace DwgExtractPlugin
                     if (string.IsNullOrWhiteSpace(baseName))
                         baseName = Safe(br.Name);
 
-                    // ✅ size in feet
+                    // size in feet
                     double lenFt, widFt;
                     GetBlockSizeFeet(tr, br, unitToFt, out lenFt, out widFt);
 
-                    // ✅ distance params (Distance1..Distance4) in feet
+                    // distance params (Distance1..Distance4) in feet
                     double d1Ft, d2Ft, d3Ft, d4Ft;
                     GetDistanceParamsFeet(br, unitToFt, out d1Ft, out d2Ft, out d3Ft, out d4Ft);
 
                     // ✅ zone for this block ref
-                    string zoneName = ResolveZoneForBlockRef(br, zones);
+                    string zoneName = NormalizeZone(ResolveZoneForBlockRef(br, zones));
 
-                    // ✅ Collect ALL dynamic/custom props for Config column (e.g. RADIUS, Visibility1)
-                    //    We’ll aggregate them per block type.
+                    // dynamic/custom props for Config
                     Dictionary<string, string> dynConfig = CollectDynamicConfig(br);
 
-                    // ---------- ALL aggregation (for default output + sheet-like) ----------
+                    // ---------- ALL aggregation ----------
                     {
                         AllAgg a;
                         if (!allGrouped.TryGetValue(baseName, out a))
@@ -153,7 +157,7 @@ namespace DwgExtractPlugin
                         if (d3Ft > 0) a.D3Fts.Add(d3Ft);
                         if (d4Ft > 0) a.D4Fts.Add(d4Ft);
 
-                        // ✅ store config props (for Config column in sheet-like)
+                        // config props buckets
                         if (dynConfig != null && dynConfig.Count > 0)
                         {
                             foreach (var kv in dynConfig)
@@ -173,19 +177,19 @@ namespace DwgExtractPlugin
                             }
                         }
 
-                        // ✅ zoneCounts
+                        // zoneCounts
                         if (!string.IsNullOrWhiteSpace(zoneName))
                         {
                             int prev = 0;
                             a.ZoneCounts.TryGetValue(zoneName, out prev);
                             a.ZoneCounts[zoneName] = prev + 1;
 
-                            // If zoned, categoryLike becomes PLANNER (like your earlier output)
-                            a.CategoryLike = "PLANNER";
+                            // ✅ DON'T override the product/category just because it's zoned
+                            if (string.IsNullOrWhiteSpace(a.CategoryLike))
+                                a.CategoryLike = Safe(br.Layer);
                         }
                         else
                         {
-                            // fallback "product-like" = layer
                             if (string.IsNullOrWhiteSpace(a.CategoryLike))
                                 a.CategoryLike = Safe(br.Layer);
                         }
@@ -258,7 +262,6 @@ namespace DwgExtractPlugin
                 a.Distance3Ft = Median(a.D3Fts);
                 a.Distance4Ft = Median(a.D4Fts);
 
-                // ✅ build one representative config string for this block type
                 a.ConfigString = BuildConfigStringFromBuckets(a.ConfigBuckets);
             }
 
@@ -269,20 +272,40 @@ namespace DwgExtractPlugin
             string jsonAll = BuildAllJson(dwgFileName, totalInserts, allGrouped.Values.ToList());
             File.WriteAllText(outJsonAll, jsonAll, Encoding.UTF8);
 
-            // (optional) zone rows CSV
             var zoneRows = BuildZoneRows(allGrouped.Values.ToList());
             WriteZoneRowsCsv(outCsvZoneRows, zoneRows);
 
-            // ✅ NEW: sheet-like JSON for uploader (includes Config)
             var sheetRows = BuildSheetLikeRows(allGrouped.Values.ToList());
             string sheetJson = BuildSheetLikeJson(dwgFileName, sheetRows);
             File.WriteAllText(outJsonSheetLike, sheetJson, Encoding.UTF8);
+
+            string plannerJson = BuildPlannerDimsJson(dwgFileName, plannerDims);
+            File.WriteAllText(outJsonPlannerDims, plannerJson, Encoding.UTF8);
+
+            // ✅ NEW: build and write "layers" sheet json
+            var layerRows = BuildLayersSheetLikeRows(layerAgg);
+            string layersJson = BuildLayersSheetLikeJson(dwgFileName, "layers", layerRows);
+            File.WriteAllText(outJsonLayersSheetLike, layersJson, Encoding.UTF8);
 
             doc.Editor.WriteMessage("\n✅ VISJSONNET wrote:\n");
             doc.Editor.WriteMessage("  - " + outJsonVisibility + "\n");
             doc.Editor.WriteMessage("  - " + outJsonAll + "\n");
             doc.Editor.WriteMessage("  - " + outCsvZoneRows + "\n");
             doc.Editor.WriteMessage("  - " + outJsonSheetLike + "   (sheet-like JSON with Config)\n");
+            doc.Editor.WriteMessage("  - " + outJsonPlannerDims + "   (planner layer dims)\n");
+            doc.Editor.WriteMessage("  - " + outJsonLayersSheetLike + "   (NON-BLOCK layer sheet → tab 'layers')\n");
+        }
+
+        // ======================= ✅ NEW: ZONE NORMALIZATION =======================
+        private static string NormalizeZone(string zone)
+        {
+            string z = (zone ?? "").Trim();
+
+            // your 2 cases:
+            if (z.Length == 0) return "misc";
+            if (z.Equals("Unmarked Area", StringComparison.OrdinalIgnoreCase)) return "misc";
+
+            return z;
         }
 
         // ======================= MODELS =======================
@@ -336,7 +359,6 @@ namespace DwgExtractPlugin
             public readonly Dictionary<string, int> ZoneCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             public string CategoryLike;
 
-            // ✅ NEW: collect per-property values for Config column
             public readonly Dictionary<string, List<string>> ConfigBuckets = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
             public string ConfigString = "";
         }
@@ -349,19 +371,86 @@ namespace DwgExtractPlugin
             public string CategoryLike;
         }
 
-        // ✅ NEW: rows that directly match the sheet screenshot columns
         private class SheetRow
         {
-            // We’ll output keys exactly as your sheet headers.
-            public string Product;       // "Product"
-            public string BoqName;       // "BOQ name"
-            public string Zone;          // "zone"
-            public string Config;        // "Config"
-            public int QtyValue;         // "qty_value"
-            public double LengthFt;      // "length (ft)"
-            public double WidthFt;       // "width (ft)"
-            public string Params;        // "Params"
-            public string Preview;       // "Preview"
+            public string Product;
+            public string BoqName;
+            public string Zone;
+            public string Config;
+            public int QtyValue;
+            public double LengthFt;
+            public double WidthFt;
+            public string Params;
+            public string Preview;
+        }
+
+        // ======================= PLANNER DIMS =======================
+
+        private class PlannerDims
+        {
+            public double OverallWidthFt;
+            public double OverallHeightFt;
+            public readonly List<PlannerZoneDim> Zones = new List<PlannerZoneDim>();
+        }
+
+        private class PlannerZoneDim
+        {
+            public string Name;
+            public double WidthFt;
+            public double HeightFt;
+            public double AreaSqFt;
+        }
+
+        // ======================= NEW: LAYERS SHEET MODELS =======================
+
+        private struct ZoneLayerKey : IEquatable<ZoneLayerKey>
+        {
+            public string Zone;
+            public string Layer;
+
+            public ZoneLayerKey(string zone, string layer)
+            {
+                Zone = NormalizeZone(zone);
+                Layer = (layer ?? "").Trim();
+            }
+
+            public bool Equals(ZoneLayerKey other)
+                => string.Equals(Zone, other.Zone, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(Layer, other.Layer, StringComparison.OrdinalIgnoreCase);
+
+            public override bool Equals(object obj)
+                => obj is ZoneLayerKey && Equals((ZoneLayerKey)obj);
+
+            public override int GetHashCode()
+            {
+                unchecked
+                {
+                    int h1 = (Zone ?? "").ToUpperInvariant().GetHashCode();
+                    int h2 = (Layer ?? "").ToUpperInvariant().GetHashCode();
+                    return (h1 * 397) ^ h2;
+                }
+            }
+        }
+
+        private class LayerAgg
+        {
+            public string Zone;
+            public string Layer;
+
+            public double OpenLenFt;     // open length only
+            public double PerimeterFt;   // closed boundary perimeter
+            public double AreaFt2;       // closed area
+        }
+
+        private class LayerSheetRow
+        {
+            public string Layer;
+            public string Zone;
+            public string Remarks;
+            public double LengthFt;
+            public double WidthFt;
+            public double PerimeterFt;
+            public double AreaFt2;
         }
 
         // ======================= JSON BUILDERS =======================
@@ -466,7 +555,6 @@ namespace DwgExtractPlugin
             return sb.ToString();
         }
 
-        // ✅ NEW: sheet-like JSON writer
         private static string BuildSheetLikeJson(string dwg, List<SheetRow> rows)
         {
             var sb = new StringBuilder();
@@ -482,13 +570,82 @@ namespace DwgExtractPlugin
                 sb.Append("    {\n");
                 sb.Append("      \"Product\": ").Append(JsonStr(r.Product ?? "")).Append(",\n");
                 sb.Append("      \"BOQ name\": ").Append(JsonStr(r.BoqName ?? "")).Append(",\n");
-                sb.Append("      \"zone\": ").Append(JsonStr(r.Zone ?? "")).Append(",\n");
+                sb.Append("      \"zone\": ").Append(JsonStr(NormalizeZone(r.Zone))).Append(",\n");
                 sb.Append("      \"Config\": ").Append(JsonStr(r.Config ?? "")).Append(",\n");
                 sb.Append("      \"qty_value\": ").Append(r.QtyValue.ToString(CultureInfo.InvariantCulture)).Append(",\n");
                 sb.Append("      \"length (ft)\": ").Append(Num(r.LengthFt)).Append(",\n");
                 sb.Append("      \"width (ft)\": ").Append(Num(r.WidthFt)).Append(",\n");
                 sb.Append("      \"Params\": ").Append(JsonStr(r.Params ?? "")).Append(",\n");
                 sb.Append("      \"Preview\": ").Append(JsonStr(r.Preview ?? "")).Append("\n");
+                sb.Append("    }");
+                if (i < rows.Count - 1) sb.Append(",");
+                sb.Append("\n");
+            }
+
+            sb.Append("  ]\n");
+            sb.Append("}\n");
+            return sb.ToString();
+        }
+
+        private static string BuildPlannerDimsJson(string dwg, PlannerDims d)
+        {
+            if (d == null) d = new PlannerDims();
+
+            var sb = new StringBuilder();
+            sb.Append("{\n");
+            sb.Append("  \"dwg\": ").Append(JsonStr(dwg)).Append(",\n");
+            sb.Append("  \"plannerLayer\": ").Append(JsonStr("planner")).Append(",\n");
+            sb.Append("  \"overall\": {\n");
+            sb.Append("    \"width_ft\": ").Append(Num(d.OverallWidthFt)).Append(",\n");
+            sb.Append("    \"height_ft\": ").Append(Num(d.OverallHeightFt)).Append("\n");
+            sb.Append("  },\n");
+            sb.Append("  \"zones\": [\n");
+
+            var zs = d.Zones
+                .Where(z => z != null)
+                .OrderBy(z => z.Name ?? "", StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            for (int i = 0; i < zs.Count; i++)
+            {
+                var z = zs[i];
+                sb.Append("    {\n");
+                sb.Append("      \"name\": ").Append(JsonStr(z.Name ?? "")).Append(",\n");
+                sb.Append("      \"width_ft\": ").Append(Num(z.WidthFt)).Append(",\n");
+                sb.Append("      \"height_ft\": ").Append(Num(z.HeightFt)).Append(",\n");
+                sb.Append("      \"area_sqft\": ").Append(Num(z.AreaSqFt)).Append("\n");
+                sb.Append("    }");
+                if (i < zs.Count - 1) sb.Append(",");
+                sb.Append("\n");
+            }
+
+            sb.Append("  ]\n");
+            sb.Append("}\n");
+            return sb.ToString();
+        }
+
+        // ✅ NEW: Layers sheet-like JSON
+        private static string BuildLayersSheetLikeJson(string dwg, string tab, List<LayerSheetRow> rows)
+        {
+            if (rows == null) rows = new List<LayerSheetRow>();
+
+            var sb = new StringBuilder();
+            sb.Append("{\n");
+            sb.Append("  \"dwg\": ").Append(JsonStr(dwg)).Append(",\n");
+            sb.Append("  \"tab\": ").Append(JsonStr(tab ?? "layers")).Append(",\n");
+            sb.Append("  \"items\": [\n");
+
+            for (int i = 0; i < rows.Count; i++)
+            {
+                var r = rows[i];
+                sb.Append("    {\n");
+                sb.Append("      \"layer\": ").Append(JsonStr(r.Layer ?? "")).Append(",\n");
+                sb.Append("      \"zone\": ").Append(JsonStr(NormalizeZone(r.Zone))).Append(",\n");
+                sb.Append("      \"remarks\": ").Append(JsonStr(r.Remarks ?? "")).Append(",\n");
+                sb.Append("      \"length (ft)\": ").Append(Num(r.LengthFt)).Append(",\n");
+                sb.Append("      \"width (ft)\": ").Append(Num(r.WidthFt)).Append(",\n");
+                sb.Append("      \"perimeter\": ").Append(Num(r.PerimeterFt)).Append(",\n");
+                sb.Append("      \"area (ft2)\": ").Append(Num(r.AreaFt2)).Append("\n");
                 sb.Append("    }");
                 if (i < rows.Count - 1) sb.Append(",");
                 sb.Append("\n");
@@ -513,9 +670,9 @@ namespace DwgExtractPlugin
 
                 foreach (var kv in it.ZoneCounts)
                 {
-                    string z = kv.Key ?? "";
+                    string z = NormalizeZone(kv.Key ?? "");
                     int qty = kv.Value;
-                    if (string.IsNullOrWhiteSpace(z) || qty <= 0) continue;
+                    if (qty <= 0) continue;
 
                     rows.Add(new ZoneRow
                     {
@@ -544,7 +701,7 @@ namespace DwgExtractPlugin
                 {
                     sw.WriteLine(
                         Csv(r.BlockName) + "," +
-                        Csv(r.Zone) + "," +
+                        Csv(NormalizeZone(r.Zone)) + "," +
                         r.Qty.ToString(CultureInfo.InvariantCulture) + "," +
                         Csv(r.CategoryLike)
                     );
@@ -552,7 +709,6 @@ namespace DwgExtractPlugin
             }
         }
 
-        // ✅ Build rows shaped exactly like the sheet screenshot
         private static List<SheetRow> BuildSheetLikeRows(List<AllAgg> items)
         {
             var rows = new List<SheetRow>();
@@ -566,16 +722,15 @@ namespace DwgExtractPlugin
                 {
                     foreach (var kv in it.ZoneCounts)
                     {
-                        string zone = kv.Key ?? "";
+                        string zone = NormalizeZone(kv.Key ?? "");
                         int qty = kv.Value;
-
-                        if (string.IsNullOrWhiteSpace(zone) || qty <= 0) continue;
+                        if (qty <= 0) continue;
 
                         rows.Add(new SheetRow
                         {
                             Product = PrettyProductName(it.CategoryLike),
                             BoqName = it.BlockName ?? "",
-                            Zone = zone,
+                            Zone = zone, // ✅ already normalized
                             Config = it.ConfigString ?? "",
                             QtyValue = qty,
                             LengthFt = it.LengthFt,
@@ -587,11 +742,12 @@ namespace DwgExtractPlugin
                 }
                 else
                 {
+                    // ✅ your requested default
                     rows.Add(new SheetRow
                     {
                         Product = PrettyProductName(it.CategoryLike),
                         BoqName = it.BlockName ?? "",
-                        Zone = "Unmarked Area",
+                        Zone = "misc",
                         Config = it.ConfigString ?? "",
                         QtyValue = it.TotalCount,
                         LengthFt = it.LengthFt,
@@ -609,15 +765,12 @@ namespace DwgExtractPlugin
                 .ToList();
         }
 
-        // If you want “Loose Furniture” instead of “PLANNER” etc, map here:
         private static string PrettyProductName(string categoryLike)
         {
             string s = (categoryLike ?? "").Trim();
             if (s.Length == 0) return "";
-
             if (s.Equals("PLANNER", StringComparison.OrdinalIgnoreCase))
                 return "Loose Furniture";
-
             return s;
         }
 
@@ -636,7 +789,6 @@ namespace DwgExtractPlugin
 
         // ======================= CONFIG (Dynamic/Custom props) =======================
 
-        // ✅ Collect all dynamic properties into key/value (RADIUS, Visibility1, etc.)
         private static Dictionary<string, string> CollectDynamicConfig(BlockReference br)
         {
             var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -654,15 +806,9 @@ namespace DwgExtractPlugin
                     string name = (p.PropertyName ?? "").Trim();
                     if (name.Length == 0) continue;
 
-                    // Skip very noisy/system-like ones if they appear in your files
-                    // (Keep visibility + radius + custom values)
-                    // You can add more filters if needed.
-                    // if (name.Equals("Origin", StringComparison.OrdinalIgnoreCase)) continue;
-
                     string val = "";
                     if (p.Value != null)
                     {
-                        // normalize numeric values nicely
                         double dv;
                         if (TryGetDouble(p.Value, out dv))
                             val = dv.ToString("0.####", CultureInfo.InvariantCulture);
@@ -679,10 +825,6 @@ namespace DwgExtractPlugin
             return map;
         }
 
-        // ✅ Turn buckets into one string: "RADIUS=900; Visibility1=2"
-        // Rule:
-        // - if numeric -> choose median
-        // - else -> choose most common value (mode)
         private static string BuildConfigStringFromBuckets(Dictionary<string, List<string>> buckets)
         {
             if (buckets == null || buckets.Count == 0) return "";
@@ -700,7 +842,6 @@ namespace DwgExtractPlugin
                 if (!buckets.TryGetValue(k, out vals) || vals == null || vals.Count == 0)
                     continue;
 
-                // try numeric median
                 var nums = new List<double>();
                 foreach (var s in vals)
                 {
@@ -719,7 +860,6 @@ namespace DwgExtractPlugin
                 }
                 else
                 {
-                    // mode for strings
                     chosen = vals
                         .Where(x => !string.IsNullOrWhiteSpace(x))
                         .GroupBy(x => x.Trim(), StringComparer.OrdinalIgnoreCase)
@@ -735,6 +875,376 @@ namespace DwgExtractPlugin
 
             if (parts.Count == 0) return "";
             return string.Join("; ", parts);
+        }
+
+        // ======================= PLANNER LAYER =======================
+
+        private static void EnsureLayerExists(Transaction tr, Database db, string layerName)
+        {
+            if (string.IsNullOrWhiteSpace(layerName)) return;
+
+            var lt = (LayerTable)tr.GetObject(db.LayerTableId, OpenMode.ForRead);
+            if (lt.Has(layerName)) return;
+
+            lt.UpgradeOpen();
+            var ltr = new LayerTableRecord { Name = layerName };
+            lt.Add(ltr);
+            tr.AddNewlyCreatedDBObject(ltr, true);
+        }
+
+        private static void MoveLayerContents(Transaction tr, BlockTableRecord ms, string fromLayer, string toLayer)
+        {
+            if (ms == null) return;
+            fromLayer = (fromLayer ?? "").Trim();
+            toLayer = (toLayer ?? "").Trim();
+            if (fromLayer.Length == 0 || toLayer.Length == 0) return;
+
+            foreach (ObjectId id in ms)
+            {
+                if (!id.ObjectClass.IsDerivedFrom(RXObject.GetClass(typeof(Entity))))
+                    continue;
+
+                var ent = tr.GetObject(id, OpenMode.ForRead) as Entity;
+                if (ent == null) continue;
+
+                if (!string.Equals((ent.Layer ?? "").Trim(), fromLayer, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                ent.UpgradeOpen();
+                ent.Layer = toLayer;
+            }
+        }
+
+        private static PlannerDims ComputePlannerDims(List<PlannerZone> zones, double unitToFt)
+        {
+            var d = new PlannerDims();
+
+            if (zones == null || zones.Count == 0)
+                return d;
+
+            double minX = double.PositiveInfinity, minY = double.PositiveInfinity;
+            double maxX = double.NegativeInfinity, maxY = double.NegativeInfinity;
+
+            foreach (var z in zones)
+            {
+                if (z == null || z.Poly == null || z.Poly.Count < 3) continue;
+
+                double zMinX = double.PositiveInfinity, zMinY = double.PositiveInfinity;
+                double zMaxX = double.NegativeInfinity, zMaxY = double.NegativeInfinity;
+
+                foreach (var p in z.Poly)
+                {
+                    if (p.X < zMinX) zMinX = p.X;
+                    if (p.Y < zMinY) zMinY = p.Y;
+                    if (p.X > zMaxX) zMaxX = p.X;
+                    if (p.Y > zMaxY) zMaxY = p.Y;
+                }
+
+                double wFt = Math.Abs(zMaxX - zMinX) * unitToFt;
+                double hFt = Math.Abs(zMaxY - zMinY) * unitToFt;
+
+                double areaUnits2 = PolyArea(z.Poly);
+                double areaFt2 = Math.Abs(areaUnits2) * unitToFt * unitToFt;
+
+                d.Zones.Add(new PlannerZoneDim
+                {
+                    Name = z.Name ?? "",
+                    WidthFt = wFt,
+                    HeightFt = hFt,
+                    AreaSqFt = areaFt2
+                });
+
+                if (zMinX < minX) minX = zMinX;
+                if (zMinY < minY) minY = zMinY;
+                if (zMaxX > maxX) maxX = zMaxX;
+                if (zMaxY > maxY) maxY = zMaxY;
+            }
+
+            if (!double.IsInfinity(minX) && !double.IsInfinity(maxX))
+            {
+                d.OverallWidthFt = Math.Abs(maxX - minX) * unitToFt;
+                d.OverallHeightFt = Math.Abs(maxY - minY) * unitToFt;
+            }
+
+            return d;
+        }
+
+        private static double PolyArea(List<Point2d> poly)
+        {
+            if (poly == null || poly.Count < 3) return 0;
+
+            double area = 0;
+            int n = poly.Count;
+            for (int i = 0; i < n; i++)
+            {
+                var a = poly[i];
+                var b = poly[(i + 1) % n];
+                area += (a.X * b.Y - b.X * a.Y);
+            }
+            return 0.5 * area;
+        }
+
+        // ======================= ✅ NEW: NON-BLOCK → LAYERS METRICS =======================
+
+        private static void ComputeNonBlockLayerMetrics(
+            Transaction tr,
+            BlockTableRecord ms,
+            List<PlannerZone> zones,
+            double unitToFt,
+            Dictionary<ZoneLayerKey, LayerAgg> agg)
+        {
+            if (ms == null) return;
+            if (agg == null) return;
+
+            foreach (ObjectId id in ms)
+            {
+                if (!id.ObjectClass.IsDerivedFrom(RXObject.GetClass(typeof(Entity))))
+                    continue;
+
+                Entity ent = tr.GetObject(id, OpenMode.ForRead) as Entity;
+                if (ent == null) continue;
+
+                // skip block refs (user wants "everything not blocks")
+                if (ent is BlockReference) continue;
+
+                // skip planner layer entities
+                if (IsPlannerLayer(ent.Layer)) continue;
+
+                string layer = Safe(ent.Layer).Trim();
+                if (layer.Length == 0) layer = "misc";
+
+                // ✅ normalize zone here
+                string zone = NormalizeZone(ResolveZoneForEntity(ent, zones));
+
+                var key = new ZoneLayerKey(zone, layer);
+                LayerAgg a;
+                if (!agg.TryGetValue(key, out a))
+                {
+                    a = new LayerAgg { Zone = zone, Layer = layer, OpenLenFt = 0, PerimeterFt = 0, AreaFt2 = 0 };
+                    agg[key] = a;
+                }
+
+                if (ent is Line)
+                {
+                    var ln = (Line)ent;
+                    double lenFt = ln.Length * unitToFt;
+                    if (lenFt > 0) a.OpenLenFt += lenFt;
+                    continue;
+                }
+
+                if (ent is Arc)
+                {
+                    var ar = (Arc)ent;
+                    double sweepRad = Math.Abs(ar.EndAngle - ar.StartAngle);
+                    double lenFt = Math.Abs(ar.Radius * sweepRad) * unitToFt;
+                    if (lenFt > 0) a.OpenLenFt += lenFt;
+                    continue;
+                }
+
+                if (ent is Circle)
+                {
+                    var c = (Circle)ent;
+                    double pFt = (2.0 * Math.PI * Math.Abs(c.Radius)) * unitToFt;
+                    double aFt2 = (Math.PI * c.Radius * c.Radius) * unitToFt * unitToFt;
+                    if (pFt > 0) a.PerimeterFt += pFt;
+                    if (aFt2 > 0) a.AreaFt2 += aFt2;
+                    continue;
+                }
+
+                if (ent is Polyline)
+                {
+                    var pl = (Polyline)ent;
+                    double lenFt = pl.Length * unitToFt;
+
+                    if (pl.Closed)
+                    {
+                        if (lenFt > 0) a.PerimeterFt += lenFt;
+                        try
+                        {
+                            double areaFt2 = Math.Abs(pl.Area) * unitToFt * unitToFt;
+                            if (areaFt2 > 0) a.AreaFt2 += areaFt2;
+                        }
+                        catch { }
+                    }
+                    else
+                    {
+                        if (lenFt > 0) a.OpenLenFt += lenFt;
+                    }
+                    continue;
+                }
+
+                if (ent is Polyline2d)
+                {
+                    var pl2 = (Polyline2d)ent;
+                    try
+                    {
+                        double lenFt = GetCurveLengthFt(tr, pl2, unitToFt);
+                        bool closed = pl2.Closed;
+                        if (closed) a.PerimeterFt += lenFt;
+                        else a.OpenLenFt += lenFt;
+                    }
+                    catch { }
+                    continue;
+                }
+
+                if (ent is Polyline3d)
+                {
+                    var pl3 = (Polyline3d)ent;
+                    try
+                    {
+                        double lenFt = GetCurveLengthFt(tr, pl3, unitToFt);
+                        bool closed = pl3.Closed;
+                        if (closed) a.PerimeterFt += lenFt;
+                        else a.OpenLenFt += lenFt;
+                    }
+                    catch { }
+                    continue;
+                }
+
+                if (ent is Hatch)
+                {
+                    var h = (Hatch)ent;
+                    try
+                    {
+                        double areaFt2 = Math.Abs(h.Area) * unitToFt * unitToFt;
+                        if (areaFt2 > 0) a.AreaFt2 += areaFt2;
+                    }
+                    catch { }
+                    continue;
+                }
+            }
+        }
+
+        private static double GetCurveLengthFt(Transaction tr, Entity ent, double unitToFt)
+        {
+            try
+            {
+                Curve c = ent as Curve;
+                if (c != null)
+                {
+                    double start = c.StartParam;
+                    double end = c.EndParam;
+                    double d0 = c.GetDistanceAtParameter(start);
+                    double d1 = c.GetDistanceAtParameter(end);
+                    return Math.Abs(d1 - d0) * unitToFt;
+                }
+            }
+            catch { }
+            return 0;
+        }
+
+        private static List<LayerSheetRow> BuildLayersSheetLikeRows(Dictionary<ZoneLayerKey, LayerAgg> agg)
+        {
+            var rows = new List<LayerSheetRow>();
+            if (agg == null || agg.Count == 0) return rows;
+
+            foreach (var kv in agg)
+            {
+                var a = kv.Value;
+                if (a == null) continue;
+
+                string zone = NormalizeZone(a.Zone ?? "");
+                string layer = (a.Layer ?? "");
+
+                if (a.OpenLenFt > 0)
+                {
+                    rows.Add(new LayerSheetRow
+                    {
+                        Layer = layer,
+                        Zone = zone,
+                        Remarks = "OPEN length only",
+                        LengthFt = a.OpenLenFt,
+                        WidthFt = 0,
+                        PerimeterFt = 0,
+                        AreaFt2 = 0
+                    });
+                }
+
+                if (a.PerimeterFt > 0 || a.AreaFt2 > 0)
+                {
+                    double Lrec, Wrec;
+                    SolveRectDimsFromPerimeterArea(a.PerimeterFt, a.AreaFt2, out Lrec, out Wrec);
+
+                    rows.Add(new LayerSheetRow
+                    {
+                        Layer = layer,
+                        Zone = zone,
+                        Remarks = "CLOSED (rectangle): length/width + perimeter & area",
+                        LengthFt = Lrec,
+                        WidthFt = Wrec,
+                        PerimeterFt = a.PerimeterFt,
+                        AreaFt2 = a.AreaFt2
+                    });
+                }
+            }
+
+            return rows
+                .OrderBy(r => r.Layer ?? "", StringComparer.OrdinalIgnoreCase)
+                .ThenBy(r => r.Zone ?? "", StringComparer.OrdinalIgnoreCase)
+                .ThenBy(r => r.Remarks ?? "", StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        private static void SolveRectDimsFromPerimeterArea(double P, double A, out double L, out double W)
+        {
+            L = 0; W = 0;
+            try
+            {
+                if (P <= 0 || A <= 0) { L = 0; W = 0; return; }
+                double S = P / 2.0;
+                double D = S * S - 4.0 * A;
+                if (D < -1e-9) { L = 0; W = 0; return; }
+                if (D < 0) D = 0;
+                double root = Math.Sqrt(D);
+                double a = 0.5 * (S + root);
+                double b = 0.5 * (S - root);
+                if (a <= 0 || b <= 0) { L = 0; W = 0; return; }
+                if (a >= b) { L = a; W = b; } else { L = b; W = a; }
+            }
+            catch { L = 0; W = 0; }
+        }
+
+        private static string ResolveZoneForEntity(Entity ent, List<PlannerZone> zones)
+        {
+            if (zones == null || zones.Count == 0 || ent == null) return "";
+
+            try
+            {
+                Point2d pt;
+
+                if (ent is Line)
+                {
+                    var ln = (Line)ent;
+                    pt = new Point2d((ln.StartPoint.X + ln.EndPoint.X) * 0.5, (ln.StartPoint.Y + ln.EndPoint.Y) * 0.5);
+                }
+                else if (ent is Circle)
+                {
+                    var c = (Circle)ent;
+                    pt = new Point2d(c.Center.X, c.Center.Y);
+                }
+                else if (ent is Arc)
+                {
+                    var a = (Arc)ent;
+                    pt = new Point2d(a.Center.X, a.Center.Y);
+                }
+                else
+                {
+                    Extents3d? ext = TryGetGeometricExtents(ent);
+                    if (ext == null) return "";
+                    var e = ext.Value;
+                    pt = new Point2d((e.MinPoint.X + e.MaxPoint.X) * 0.5, (e.MinPoint.Y + e.MaxPoint.Y) * 0.5);
+                }
+
+                foreach (var z in zones)
+                {
+                    if (z == null || z.Poly == null || z.Poly.Count < 3) continue;
+                    if (PointInPolygon(pt, z.Poly))
+                        return z.Name ?? "";
+                }
+            }
+            catch { }
+
+            return "";
         }
 
         // ======================= HELPERS =======================
@@ -790,8 +1300,7 @@ namespace DwgExtractPlugin
                     case UnitsValue.Kilometers: return 3280.839895013123;
                     case UnitsValue.Yards: return 3.0;
                     case UnitsValue.Miles: return 5280.0;
-                    case UnitsValue.Undefined:
-                        return 1.0;
+                    case UnitsValue.Undefined: return 1.0;
                 }
                 return 1.0;
             }
@@ -1059,7 +1568,7 @@ namespace DwgExtractPlugin
         }
 
         // =====================================================================
-        // ✅ PLANNER ZONES
+        // PLANNER ZONES
         // =====================================================================
 
         private class PlannerZone
@@ -1070,7 +1579,10 @@ namespace DwgExtractPlugin
 
         private static bool IsPlannerLayer(string layer)
         {
-            return string.Equals((layer ?? "").Trim(), "PLANNER", StringComparison.OrdinalIgnoreCase);
+            string s = (layer ?? "").Trim();
+            if (s.Length == 0) return false;
+            return s.Equals("PLANNER", StringComparison.OrdinalIgnoreCase)
+                || s.Equals("planner", StringComparison.OrdinalIgnoreCase);
         }
 
         private static List<PlannerZone> CollectPlannerZones(Transaction tr, BlockTableRecord ms)
@@ -1085,6 +1597,8 @@ namespace DwgExtractPlugin
 
                 var ent = tr.GetObject(id, OpenMode.ForRead) as Entity;
                 if (ent == null) continue;
+
+                if (!IsPlannerLayer(ent.Layer)) continue;
 
                 if (ent is DBText)
                 {

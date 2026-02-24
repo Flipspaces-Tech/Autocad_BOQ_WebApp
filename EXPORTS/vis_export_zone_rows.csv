@@ -1,54 +1,63 @@
 ﻿blockName,zone,qty,categoryLike
-2 SEATER SOFA,LoungeArea,6,PLANNER
-2 SEATER SOFA,LoungeRoom,2,PLANNER
-BLINDS- MEETING ROOM,MeetingRoom 1,1,PLANNER
-BLINDS- WAITING AREA,LoungeArea,1,PLANNER
-BLINDS- WAITING AREA 2,LoungeArea,1,PLANNER
-BLINDS- WAITING AREA 3,LoungeRoom,1,PLANNER
-Blinds-Dining1,Conference,5,PLANNER
-Blinds-Dining2,Conference,5,PLANNER
-BLINDS-MEETING ROOM 2,MeetingRoom 2,1,PLANNER
-CENTRE TABLE RECTANGLE,LoungeArea,2,PLANNER
-CentreTable_Cyclinde_L4.5ft,LoungeRoom,1,PLANNER
-CIRCLE PANEL LIGHT,Conference,22,PLANNER
-CIRCLE PANEL LIGHT,LoungeArea,6,PLANNER
-CIRCLE PANEL LIGHT,LoungeRoom,4,PLANNER
-CrockeryStorage,Conference,1,PLANNER
-DiningChair,Conference,20,PLANNER
-DiningTable-20seater,Conference,1,PLANNER
-Door_Aluminium,Conference,2,PLANNER
-Door_Aluminium,MeetingRoom 1,1,PLANNER
-Door_Flush,Conference,1,PLANNER
-Door_Flush,MeetingRoom 1,1,PLANNER
-GLASS DOOR,Conference,3,PLANNER
-GLASS DOOR,LoungeRoom,1,PLANNER
-GLASS DOOR,MeetingRoom 1,1,PLANNER
-GLASS DOOR,MeetingRoom 2,1,PLANNER
-HandwashArea,Conference,1,PLANNER
-HangingLightPill,LoungeRoom,1,PLANNER
-LightAcousticPill,MeetingRoom 2,1,PLANNER
-LightHangingTriangle,MeetingRoom 1,1,PLANNER
-LoungeChair,LoungeRoom,2,PLANNER
-MEETING ROOM TABLE - 6 SEAT,MeetingRoom 2,1,PLANNER
-MEETING ROOM TABLE - 6 SEATER,MeetingRoom 1,1,PLANNER
-MEETING ROOM TABLE - 6 SEATER - RECTANGLE,MeetingRoom 1,4,PLANNER
-MEETING ROOM TABLE - 6 SEATER - RECTANGLE,MeetingRoom 2,6,PLANNER
-OrbitDrumCeilingLight,LoungeArea,2,PLANNER
-OrbitRingLight,Conference,3,PLANNER
-PLANTER  - BIG,Conference,1,PLANNER
-PLANTER  - BIG,LoungeArea,1,PLANNER
-PLANTER  - BIG,LoungeRoom,1,PLANNER
-ServiceCounter,Conference,1,PLANNER
-SIDE TABLE,LoungeArea,4,PLANNER
-SINK,Conference,1,PLANNER
-SPOT LIGHT,MeetingRoom 1,4,PLANNER
-SPOT LIGHT,MeetingRoom 2,6,PLANNER
-START,Conference,1,PLANNER
-STRG,MeetingRoom 2,1,PLANNER
-TRACK LIGHT,LoungeArea,3,PLANNER
-WallFrame2.5ft,Conference,1,PLANNER
-WallFrame2ft,LoungeRoom,3,PLANNER
-WallFrame2ft,MeetingRoom 1,3,PLANNER
-WallFrame2ft,MeetingRoom 2,3,PLANNER
-WashBasin_Round,Conference,1,PLANNER
-WC,Conference,1,PLANNER
+2 SEATER SOFA,LoungeArea,6,2 SEATER SOFA
+2 SEATER SOFA,LoungeRoom,2,2 SEATER SOFA
+BLINDS- MEETING ROOM,MeetingRoom 1,1,BLINDS
+BLINDS- WAITING AREA,LoungeArea,1,BLINDS
+BLINDS- WAITING AREA 2,LoungeArea,1,BLINDS
+BLINDS- WAITING AREA 3,LoungeRoom,1,BLINDS
+Blinds-Dining1,Conference,5,BLINDS
+Blinds-Dining2,Conference,5,BLINDS
+BLINDS-MEETING ROOM 2,MeetingRoom 2,1,BLINDS
+CENTRE TABLE RECTANGLE,LoungeArea,2,CENTER TABLE
+CentreTable_Cyclinde_L4.5ft,LoungeRoom,1,CENTER TABLE
+CIRCLE PANEL LIGHT,Conference,22,LIGHT
+CIRCLE PANEL LIGHT,LoungeArea,6,LIGHT
+CIRCLE PANEL LIGHT,LoungeRoom,4,LIGHT
+CIRCLE PANEL LIGHT,misc,21,LIGHT
+CrockeryStorage,Conference,1,CUSTOM CARPENTERY
+cxz,misc,1,CENTER TABLE
+DiningChair,Conference,20,HIGH BACK CHAIR
+DiningTable-20seater,Conference,1,Workstation
+Door_Aluminium,Conference,2,ALUMINIUM DOOR
+Door_Aluminium,MeetingRoom 1,1,ALUMINIUM DOOR
+Door_Aluminium,misc,1,ALUMINIUM DOOR
+Door_Flush,Conference,1,SOLID FLUSH DOOR
+Door_Flush,MeetingRoom 1,1,SOLID FLUSH DOOR
+Door_Flush,misc,1,SOLID FLUSH DOOR
+Fridge,misc,1,DECORATIVES
+GLASS DOOR,Conference,3,GLASS DOOR
+GLASS DOOR,LoungeRoom,1,GLASS DOOR
+GLASS DOOR,MeetingRoom 1,1,GLASS DOOR
+GLASS DOOR,MeetingRoom 2,1,GLASS DOOR
+GLASS DOOR,misc,2,GLASS DOOR
+HandwashArea,Conference,1,CUSTOM CARPENTERY
+HangingLightPill,LoungeRoom,1,LIGHT
+LightAcousticPill,MeetingRoom 2,1,WALLPAPER_DININGROOM
+LightHangingTriangle,MeetingRoom 1,1,WALLPAPER_DININGROOM
+LoungeChair,LoungeRoom,2,HIGH BACK CHAIR
+MEETING ROOM TABLE - 6 SEAT,MeetingRoom 2,1,MEETING ROOM TABLE
+MEETING ROOM TABLE - 6 SEATER,MeetingRoom 1,1,MEETING ROOM TABLE
+MEETING ROOM TABLE - 6 SEATER - RECTANGLE,MeetingRoom 1,4,HIGH BACK CHAIR
+MEETING ROOM TABLE - 6 SEATER - RECTANGLE,MeetingRoom 2,6,HIGH BACK CHAIR
+OrbitDrumCeilingLight,LoungeArea,2,WALLPAPER_DININGROOM
+OrbitRingLight,Conference,3,LIGHT
+PLANTER  - BIG,Conference,1,DECORATIVES
+PLANTER  - BIG,LoungeArea,1,DECORATIVES
+PLANTER  - BIG,LoungeRoom,1,DECORATIVES
+REWSAQ,misc,1,STORAGE
+ServiceCounter,Conference,1,CUSTOM CARPENTERY
+SIDE TABLE,LoungeArea,4,SIDE TABLE
+SINK,Conference,1,DECORATIVES
+SPOT LIGHT,MeetingRoom 1,4,LIGHT
+SPOT LIGHT,MeetingRoom 2,6,LIGHT
+START,Conference,1,START_FS
+STRG,MeetingRoom 2,1,STORAGE
+TRACK LIGHT,LoungeArea,3,LIGHT
+WallFrame2.5ft,Conference,1,WALL FRAME
+WallFrame2ft,LoungeRoom,3,WALL FRAME
+WallFrame2ft,MeetingRoom 1,3,WALL FRAME
+WallFrame2ft,MeetingRoom 2,3,WALL FRAME
+WashBasin_Round,Conference,1,RESTROOM
+WashBasin_Round,misc,1,RESTROOM
+WC,Conference,1,RESTROOM
+WC,misc,2,RESTROOM

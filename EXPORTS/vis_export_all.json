@@ -12,7 +12,7 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "PLANNER",
+      "categoryLike": "2 SEATER SOFA",
       "zoneCounts": {"LoungeArea": 6, "LoungeRoom": 2}
     },
     {
@@ -25,7 +25,7 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "PLANNER",
+      "categoryLike": "BLINDS",
       "zoneCounts": {"MeetingRoom 1": 1}
     },
     {
@@ -38,7 +38,7 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "PLANNER",
+      "categoryLike": "BLINDS",
       "zoneCounts": {"LoungeArea": 1}
     },
     {
@@ -51,7 +51,7 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "PLANNER",
+      "categoryLike": "BLINDS",
       "zoneCounts": {"LoungeArea": 1}
     },
     {
@@ -64,7 +64,7 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "PLANNER",
+      "categoryLike": "BLINDS",
       "zoneCounts": {"LoungeRoom": 1}
     },
     {
@@ -77,7 +77,7 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "PLANNER",
+      "categoryLike": "BLINDS",
       "zoneCounts": {"Conference": 5}
     },
     {
@@ -90,7 +90,7 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "PLANNER",
+      "categoryLike": "BLINDS",
       "zoneCounts": {"Conference": 5}
     },
     {
@@ -103,7 +103,7 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "PLANNER",
+      "categoryLike": "BLINDS",
       "zoneCounts": {"MeetingRoom 2": 1}
     },
     {
@@ -116,7 +116,7 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "PLANNER",
+      "categoryLike": "CENTER TABLE",
       "zoneCounts": {"LoungeArea": 2}
     },
     {
@@ -129,7 +129,7 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "PLANNER",
+      "categoryLike": "CENTER TABLE",
       "zoneCounts": {"LoungeRoom": 1}
     },
     {
@@ -142,8 +142,8 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "PLANNER",
-      "zoneCounts": {"Conference": 22, "LoungeArea": 6, "LoungeRoom": 4}
+      "categoryLike": "LIGHT",
+      "zoneCounts": {"Conference": 22, "LoungeArea": 6, "LoungeRoom": 4, "misc": 21}
     },
     {
       "blockName": "CrockeryStorage",
@@ -155,7 +155,7 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "PLANNER",
+      "categoryLike": "CUSTOM CARPENTERY",
       "zoneCounts": {"Conference": 1}
     },
     {
@@ -169,7 +169,7 @@
       "distance3_ft": 0,
       "distance4_ft": 0,
       "categoryLike": "CENTER TABLE",
-      "zoneCounts": {}
+      "zoneCounts": {"misc": 1}
     },
     {
       "blockName": "DiningChair",
@@ -181,7 +181,7 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "PLANNER",
+      "categoryLike": "HIGH BACK CHAIR",
       "zoneCounts": {"Conference": 20}
     },
     {
@@ -194,7 +194,7 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "PLANNER",
+      "categoryLike": "Workstation",
       "zoneCounts": {"Conference": 1}
     },
     {
@@ -207,8 +207,8 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "PLANNER",
-      "zoneCounts": {"Conference": 2, "MeetingRoom 1": 1}
+      "categoryLike": "ALUMINIUM DOOR",
+      "zoneCounts": {"Conference": 2, "MeetingRoom 1": 1, "misc": 1}
     },
     {
       "blockName": "Door_Flush",
@@ -220,8 +220,8 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "PLANNER",
-      "zoneCounts": {"Conference": 1, "MeetingRoom 1": 1}
+      "categoryLike": "SOLID FLUSH DOOR",
+      "zoneCounts": {"Conference": 1, "MeetingRoom 1": 1, "misc": 1}
     },
     {
       "blockName": "Fridge",
@@ -234,7 +234,7 @@
       "distance3_ft": 0,
       "distance4_ft": 0,
       "categoryLike": "DECORATIVES",
-      "zoneCounts": {}
+      "zoneCounts": {"misc": 1}
     },
     {
       "blockName": "GLASS DOOR",
@@ -246,8 +246,8 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "PLANNER",
-      "zoneCounts": {"Conference": 3, "LoungeRoom": 1, "MeetingRoom 1": 1, "MeetingRoom 2": 1}
+      "categoryLike": "GLASS DOOR",
+      "zoneCounts": {"Conference": 3, "LoungeRoom": 1, "MeetingRoom 1": 1, "MeetingRoom 2": 1, "misc": 2}
     },
     {
       "blockName": "HandwashArea",
@@ -259,7 +259,7 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "PLANNER",
+      "categoryLike": "CUSTOM CARPENTERY",
       "zoneCounts": {"Conference": 1}
     },
     {
@@ -272,7 +272,7 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "PLANNER",
+      "categoryLike": "LIGHT",
       "zoneCounts": {"LoungeRoom": 1}
     },
     {
@@ -285,7 +285,7 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "PLANNER",
+      "categoryLike": "WALLPAPER_DININGROOM",
       "zoneCounts": {"MeetingRoom 2": 1}
     },
     {
@@ -298,7 +298,7 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "PLANNER",
+      "categoryLike": "WALLPAPER_DININGROOM",
       "zoneCounts": {"MeetingRoom 1": 1}
     },
     {
@@ -311,7 +311,7 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "PLANNER",
+      "categoryLike": "HIGH BACK CHAIR",
       "zoneCounts": {"LoungeRoom": 2}
     },
     {
@@ -324,7 +324,7 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "PLANNER",
+      "categoryLike": "MEETING ROOM TABLE",
       "zoneCounts": {"MeetingRoom 2": 1}
     },
     {
@@ -337,7 +337,7 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "PLANNER",
+      "categoryLike": "MEETING ROOM TABLE",
       "zoneCounts": {"MeetingRoom 1": 1}
     },
     {
@@ -350,7 +350,7 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "PLANNER",
+      "categoryLike": "HIGH BACK CHAIR",
       "zoneCounts": {"MeetingRoom 1": 4, "MeetingRoom 2": 6}
     },
     {
@@ -363,7 +363,7 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "PLANNER",
+      "categoryLike": "WALLPAPER_DININGROOM",
       "zoneCounts": {"LoungeArea": 2}
     },
     {
@@ -376,7 +376,7 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "PLANNER",
+      "categoryLike": "LIGHT",
       "zoneCounts": {"Conference": 3}
     },
     {
@@ -389,7 +389,7 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "PLANNER",
+      "categoryLike": "DECORATIVES",
       "zoneCounts": {"Conference": 1, "LoungeArea": 1, "LoungeRoom": 1}
     },
     {
@@ -403,7 +403,7 @@
       "distance3_ft": 0,
       "distance4_ft": 0,
       "categoryLike": "STORAGE",
-      "zoneCounts": {}
+      "zoneCounts": {"misc": 1}
     },
     {
       "blockName": "ServiceCounter",
@@ -415,7 +415,7 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "PLANNER",
+      "categoryLike": "CUSTOM CARPENTERY",
       "zoneCounts": {"Conference": 1}
     },
     {
@@ -428,7 +428,7 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "PLANNER",
+      "categoryLike": "SIDE TABLE",
       "zoneCounts": {"LoungeArea": 4}
     },
     {
@@ -441,7 +441,7 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "PLANNER",
+      "categoryLike": "DECORATIVES",
       "zoneCounts": {"Conference": 1}
     },
     {
@@ -454,7 +454,7 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "PLANNER",
+      "categoryLike": "LIGHT",
       "zoneCounts": {"MeetingRoom 1": 4, "MeetingRoom 2": 6}
     },
     {
@@ -467,7 +467,7 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "PLANNER",
+      "categoryLike": "START_FS",
       "zoneCounts": {"Conference": 1}
     },
     {
@@ -480,7 +480,7 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "PLANNER",
+      "categoryLike": "STORAGE",
       "zoneCounts": {"MeetingRoom 2": 1}
     },
     {
@@ -493,7 +493,7 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "PLANNER",
+      "categoryLike": "LIGHT",
       "zoneCounts": {"LoungeArea": 3}
     },
     {
@@ -506,7 +506,7 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "PLANNER",
+      "categoryLike": "WALL FRAME",
       "zoneCounts": {"Conference": 1}
     },
     {
@@ -519,7 +519,7 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "PLANNER",
+      "categoryLike": "WALL FRAME",
       "zoneCounts": {"LoungeRoom": 3, "MeetingRoom 1": 3, "MeetingRoom 2": 3}
     },
     {
@@ -532,8 +532,8 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "PLANNER",
-      "zoneCounts": {"Conference": 1}
+      "categoryLike": "RESTROOM",
+      "zoneCounts": {"Conference": 1, "misc": 1}
     },
     {
       "blockName": "WC",
@@ -545,8 +545,8 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "PLANNER",
-      "zoneCounts": {"Conference": 1}
+      "categoryLike": "RESTROOM",
+      "zoneCounts": {"Conference": 1, "misc": 2}
     }
   ]
 }

@@ -1,0 +1,736 @@
+﻿{
+  "dwg": "CRED_NEW.dwg",
+  "headers": ["category", "zone", "length (ft)", "width (ft)", "perimeter", "area (ft2)", "Preview", "preview_hex"],
+  "items": [
+    {
+      "category": "ANTI STATIC FLOORING",
+      "zone": "",
+      "length (ft)": 218.4621,
+      "width (ft)": 16.8914,
+      "perimeter": 470.7069,
+      "area (ft2)": 3690.1263,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "ANTI STATIC FLOORING",
+      "zone": "Conference",
+      "length (ft)": 0,
+      "width (ft)": 0,
+      "perimeter": 32.4771,
+      "area (ft2)": 68.5113,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "BLOCK WALL PARTITION",
+      "zone": "",
+      "length (ft)": 216.1372,
+      "width (ft)": 2.5197,
+      "perimeter": 437.3138,
+      "area (ft2)": 544.6086,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "BLOCK WALL PARTITION",
+      "zone": "Conference",
+      "length (ft)": 69.0299,
+      "width (ft)": 0.4325,
+      "perimeter": 138.9249,
+      "area (ft2)": 29.8563,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "BLOCK WALL PARTITION",
+      "zone": "LoungeRoom",
+      "length (ft)": 11.0242,
+      "width (ft)": 0,
+      "perimeter": 0,
+      "area (ft2)": 0,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "BLOCK WALL PARTITION",
+      "zone": "MeetingRoom 1",
+      "length (ft)": 10.3746,
+      "width (ft)": 0.5053,
+      "perimeter": 21.7599,
+      "area (ft2)": 5.2426,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "CARPET FLOORING",
+      "zone": "LoungeArea",
+      "length (ft)": 51.5835,
+      "width (ft)": 13.7566,
+      "perimeter": 130.6802,
+      "area (ft2)": 709.613,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "CARPET FLOORING",
+      "zone": "LoungeRoom",
+      "length (ft)": 16.0102,
+      "width (ft)": 11.6504,
+      "perimeter": 55.3211,
+      "area (ft2)": 186.5248,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "CARPET FLOORING",
+      "zone": "MeetingRoom 1",
+      "length (ft)": 14.4827,
+      "width (ft)": 9.6575,
+      "perimeter": 48.2805,
+      "area (ft2)": 139.8673,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "CARPET FLOORING",
+      "zone": "MeetingRoom 2",
+      "length (ft)": 14.4332,
+      "width (ft)": 11.3811,
+      "perimeter": 51.6286,
+      "area (ft2)": 164.2657,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "CEILING PROFILE",
+      "zone": "",
+      "length (ft)": 9.058,
+      "width (ft)": 0.7625,
+      "perimeter": 19.641,
+      "area (ft2)": 6.9069,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "CEILING PROFILE",
+      "zone": "Conference",
+      "length (ft)": 34.0291,
+      "width (ft)": 0.7258,
+      "perimeter": 69.5099,
+      "area (ft2)": 24.6984,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "CEILING PROFILE",
+      "zone": "MeetingRoom 2",
+      "length (ft)": 10.0706,
+      "width (ft)": 0.747,
+      "perimeter": 21.6351,
+      "area (ft2)": 7.5222,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "CEILING-GYPSUM",
+      "zone": "",
+      "length (ft)": 177.1012,
+      "width (ft)": 20.1501,
+      "perimeter": 394.5026,
+      "area (ft2)": 3568.604,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "CEILING-GYPSUM",
+      "zone": "Conference",
+      "length (ft)": 49.9049,
+      "width (ft)": 10.7705,
+      "perimeter": 121.3508,
+      "area (ft2)": 537.5009,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "CEILING-GYPSUM",
+      "zone": "LoungeArea",
+      "length (ft)": 50.9649,
+      "width (ft)": 13.8019,
+      "perimeter": 129.5334,
+      "area (ft2)": 703.41,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "CEILING-GYPSUM",
+      "zone": "LoungeRoom",
+      "length (ft)": 16.01,
+      "width (ft)": 11.6506,
+      "perimeter": 55.3211,
+      "area (ft2)": 186.5256,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "CEILING-GYPSUM",
+      "zone": "MeetingRoom 1",
+      "length (ft)": 14.4827,
+      "width (ft)": 9.6575,
+      "perimeter": 48.2805,
+      "area (ft2)": 139.8673,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "CEILING-GYPSUM",
+      "zone": "MeetingRoom 2",
+      "length (ft)": 44.1113,
+      "width (ft)": 7.4942,
+      "perimeter": 103.2108,
+      "area (ft2)": 330.5765,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "Disturbance_Pillar",
+      "zone": "",
+      "length (ft)": 6.784,
+      "width (ft)": 0.566,
+      "perimeter": 14.7001,
+      "area (ft2)": 3.8397,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "Disturbance_Pillar",
+      "zone": "Conference",
+      "length (ft)": 22.295,
+      "width (ft)": 0.6932,
+      "perimeter": 45.9765,
+      "area (ft2)": 15.4559,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "Disturbance_Pillar",
+      "zone": "LoungeArea",
+      "length (ft)": 4.5788,
+      "width (ft)": 0.6703,
+      "perimeter": 10.4983,
+      "area (ft2)": 3.0693,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "Disturbance_Pillar",
+      "zone": "LoungeRoom",
+      "length (ft)": 1.7616,
+      "width (ft)": 1.7609,
+      "perimeter": 7.0452,
+      "area (ft2)": 3.1022,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "Disturbance_Pillar",
+      "zone": "MeetingRoom 1",
+      "length (ft)": 2.2705,
+      "width (ft)": 0.7544,
+      "perimeter": 6.0499,
+      "area (ft2)": 1.7129,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "Disturbance_Pillar",
+      "zone": "MeetingRoom 2",
+      "length (ft)": 1.2583,
+      "width (ft)": 1.2578,
+      "perimeter": 5.0323,
+      "area (ft2)": 1.5828,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "FACADE WALL",
+      "zone": "",
+      "length (ft)": 12.8867,
+      "width (ft)": 0.7143,
+      "perimeter": 27.202,
+      "area (ft2)": 9.2054,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "FACADE WALL",
+      "zone": "Conference",
+      "length (ft)": 34.0291,
+      "width (ft)": 0.7258,
+      "perimeter": 69.5099,
+      "area (ft2)": 24.6984,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "FACADE WALL",
+      "zone": "LoungeArea",
+      "length (ft)": 23.0748,
+      "width (ft)": 0.6969,
+      "perimeter": 47.5434,
+      "area (ft2)": 16.0816,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "FACADE WALL",
+      "zone": "LoungeRoom",
+      "length (ft)": 16.379,
+      "width (ft)": 0.7113,
+      "perimeter": 34.1806,
+      "area (ft2)": 11.6496,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "FACADE WALL",
+      "zone": "MeetingRoom 1",
+      "length (ft)": 1.8899,
+      "width (ft)": 0.7552,
+      "perimeter": 5.2902,
+      "area (ft2)": 1.4273,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "FACADE WALL",
+      "zone": "MeetingRoom 2",
+      "length (ft)": 13.7881,
+      "width (ft)": 0.7046,
+      "perimeter": 28.9854,
+      "area (ft2)": 9.7152,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "GLASS BOARD",
+      "zone": "MeetingRoom 1",
+      "length (ft)": 7.9954,
+      "width (ft)": 0.0342,
+      "perimeter": 16.0592,
+      "area (ft2)": 0.2731,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "GLASS BOARD",
+      "zone": "MeetingRoom 2",
+      "length (ft)": 9.0693,
+      "width (ft)": 0.0342,
+      "perimeter": 18.2068,
+      "area (ft2)": 0.3097,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "GLASS FASCADE PARTITION",
+      "zone": "Conference",
+      "length (ft)": 9.9806,
+      "width (ft)": 0.0507,
+      "perimeter": 20.0627,
+      "area (ft2)": 0.5063,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "GLASS PARTITION",
+      "zone": "",
+      "length (ft)": 10.8604,
+      "width (ft)": 0.2436,
+      "perimeter": 22.208,
+      "area (ft2)": 2.6451,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "GLASS PARTITION",
+      "zone": "MeetingRoom 1",
+      "length (ft)": 9.6198,
+      "width (ft)": 0.2594,
+      "perimeter": 19.7585,
+      "area (ft2)": 2.4955,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "GLASS PARTITION",
+      "zone": "MeetingRoom 2",
+      "length (ft)": 10.8159,
+      "width (ft)": 0.2494,
+      "perimeter": 22.1307,
+      "area (ft2)": 2.6978,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "GYPSUM FALSE CEILING",
+      "zone": "Conference",
+      "length (ft)": 22.8967,
+      "width (ft)": 6.1174,
+      "perimeter": 58.0282,
+      "area (ft2)": 140.0678,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "GYPSUM FALSE CEILING",
+      "zone": "MeetingRoom 1",
+      "length (ft)": 7.8369,
+      "width (ft)": 5.4315,
+      "perimeter": 26.5368,
+      "area (ft2)": 42.5662,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "GYPSUM FALSE CEILING",
+      "zone": "MeetingRoom 2",
+      "length (ft)": 9.0307,
+      "width (ft)": 5.8198,
+      "perimeter": 29.7011,
+      "area (ft2)": 52.5573,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "GYPSUM PARTITION",
+      "zone": "",
+      "length (ft)": 25.8167,
+      "width (ft)": 0,
+      "perimeter": 0,
+      "area (ft2)": 0,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "GYPSUM PARTITION",
+      "zone": "Conference",
+      "length (ft)": 11.0119,
+      "width (ft)": 0,
+      "perimeter": 0,
+      "area (ft2)": 0,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "GYPSUM PARTITION 1",
+      "zone": "",
+      "length (ft)": 0.2516,
+      "width (ft)": 0.2277,
+      "perimeter": 0.9586,
+      "area (ft2)": 0.0573,
+      "Preview": "",
+      "preview_hex": "#DB0000"
+    },
+    {
+      "category": "GYPSUM PARTITION 1",
+      "zone": "LoungeRoom",
+      "length (ft)": 14.1254,
+      "width (ft)": 0.2538,
+      "perimeter": 28.7584,
+      "area (ft2)": 3.5845,
+      "Preview": "",
+      "preview_hex": "#DB0000"
+    },
+    {
+      "category": "GYPSUM PARTITION 1",
+      "zone": "MeetingRoom 1",
+      "length (ft)": 14.5288,
+      "width (ft)": 0.255,
+      "perimeter": 29.5675,
+      "area (ft2)": 3.7045,
+      "Preview": "",
+      "preview_hex": "#DB0000"
+    },
+    {
+      "category": "GYPSUM PARTITION 1",
+      "zone": "MeetingRoom 2",
+      "length (ft)": 12.9726,
+      "width (ft)": 0.2545,
+      "perimeter": 26.4543,
+      "area (ft2)": 3.3016,
+      "Preview": "",
+      "preview_hex": "#DB0000"
+    },
+    {
+      "category": "LIGHT PROFILE",
+      "zone": "Conference",
+      "length (ft)": 22.7066,
+      "width (ft)": 5.6021,
+      "perimeter": 56.6175,
+      "area (ft2)": 127.2052,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "LIGHT PROFILE",
+      "zone": "MeetingRoom 1",
+      "length (ft)": 7.3892,
+      "width (ft)": 4.9838,
+      "perimeter": 24.7462,
+      "area (ft2)": 36.8268,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "MARBLE PARTITION",
+      "zone": "Conference",
+      "length (ft)": 2.8621,
+      "width (ft)": 0.1222,
+      "perimeter": 5.9686,
+      "area (ft2)": 0.3497,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "OVERHEAD STORAGE",
+      "zone": "",
+      "length (ft)": 9.7595,
+      "width (ft)": 1.6291,
+      "perimeter": 22.7772,
+      "area (ft2)": 15.8992,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "OVERHEAD STORAGE",
+      "zone": "Conference",
+      "length (ft)": 6.1207,
+      "width (ft)": 2.0184,
+      "perimeter": 16.2782,
+      "area (ft2)": 12.3541,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "RUG FLOORING",
+      "zone": "LoungeArea",
+      "length (ft)": 13.499,
+      "width (ft)": 3.3452,
+      "perimeter": 33.6882,
+      "area (ft2)": 45.1561,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "RUG FLOORING",
+      "zone": "LoungeRoom",
+      "length (ft)": 0,
+      "width (ft)": 0,
+      "perimeter": 24.109,
+      "area (ft2)": 39.2796,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "STORAGE",
+      "zone": "",
+      "length (ft)": 1.5092,
+      "width (ft)": 1.5055,
+      "perimeter": 6.0295,
+      "area (ft2)": 2.2722,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "Text",
+      "zone": "",
+      "length (ft)": 0,
+      "width (ft)": 0,
+      "perimeter": 0,
+      "area (ft2)": 0,
+      "Preview": "",
+      "preview_hex": "#8E1728"
+    },
+    {
+      "category": "VITRIFIED TILE FLOORING",
+      "zone": "",
+      "length (ft)": 8.0049,
+      "width (ft)": 6.0572,
+      "perimeter": 28.1243,
+      "area (ft2)": 48.4875,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "VITRIFIED TILE FLOORING",
+      "zone": "Conference",
+      "length (ft)": 86.8209,
+      "width (ft)": 8.3168,
+      "perimeter": 190.2753,
+      "area (ft2)": 722.0695,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "WALL PANEL- MEETING ROOM",
+      "zone": "MeetingRoom 1",
+      "length (ft)": 14.2709,
+      "width (ft)": 0.0833,
+      "perimeter": 28.7085,
+      "area (ft2)": 1.1892,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "WALL PANEL- MEETING ROOM",
+      "zone": "MeetingRoom 2",
+      "length (ft)": 13.9768,
+      "width (ft)": 0.0833,
+      "perimeter": 28.1203,
+      "area (ft2)": 1.1647,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "WALL PANEL- WAITING LOUNGE",
+      "zone": "LoungeArea",
+      "length (ft)": 18.6487,
+      "width (ft)": 0.0833,
+      "perimeter": 37.4641,
+      "area (ft2)": 1.5541,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "WALL PANEL- WAITING LOUNGE",
+      "zone": "LoungeRoom",
+      "length (ft)": 12.0285,
+      "width (ft)": 0.0833,
+      "perimeter": 24.2236,
+      "area (ft2)": 1.0024,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "WALL PANEL-DINNING ROOM",
+      "zone": "Conference",
+      "length (ft)": 23.7393,
+      "width (ft)": 0.0851,
+      "perimeter": 47.6488,
+      "area (ft2)": 2.0207,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "WALLPAPER_BREAKOUT",
+      "zone": "LoungeArea",
+      "length (ft)": 15.7261,
+      "width (ft)": 0,
+      "perimeter": 0,
+      "area (ft2)": 0,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "WALLPAPER_BREAKOUT",
+      "zone": "LoungeRoom",
+      "length (ft)": 11.022,
+      "width (ft)": 0,
+      "perimeter": 0,
+      "area (ft2)": 0,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "WALLPAPER_DININGROOM",
+      "zone": "Conference",
+      "length (ft)": 67.3699,
+      "width (ft)": 0,
+      "perimeter": 0,
+      "area (ft2)": 0,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "WALLPAPER_DININGROOM",
+      "zone": "LoungeArea",
+      "length (ft)": 4.6564,
+      "width (ft)": 0,
+      "perimeter": 0,
+      "area (ft2)": 0,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "WALLPAPER_MEETINGROOM1",
+      "zone": "MeetingRoom 1",
+      "length (ft)": 10.3686,
+      "width (ft)": 0,
+      "perimeter": 0,
+      "area (ft2)": 0,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "WALLPAPER_MEETINGROOM2",
+      "zone": "MeetingRoom 2",
+      "length (ft)": 13.9792,
+      "width (ft)": 0,
+      "perimeter": 0,
+      "area (ft2)": 0,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "Window",
+      "zone": "",
+      "length (ft)": 9.0581,
+      "width (ft)": 0,
+      "perimeter": 0,
+      "area (ft2)": 0,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "Window",
+      "zone": "Conference",
+      "length (ft)": 32.407,
+      "width (ft)": 0,
+      "perimeter": 0,
+      "area (ft2)": 0,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "Window",
+      "zone": "LoungeArea",
+      "length (ft)": 18.5727,
+      "width (ft)": 0,
+      "perimeter": 0,
+      "area (ft2)": 0,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "Window",
+      "zone": "LoungeRoom",
+      "length (ft)": 12.5984,
+      "width (ft)": 0,
+      "perimeter": 0,
+      "area (ft2)": 0,
+      "Preview": "",
+      "preview_hex": "#000000"
+    },
+    {
+      "category": "Window",
+      "zone": "MeetingRoom 2",
+      "length (ft)": 10.0705,
+      "width (ft)": 0,
+      "perimeter": 0,
+      "area (ft2)": 0,
+      "Preview": "",
+      "preview_hex": "#000000"
+    }
+  ]
+}
