@@ -6,13 +6,10 @@
  *
  * ✅ Fills QTY even if MEASUREMENT column is missing in that master tab
  * ✅ Strong normalization for name matching (punctuation/dashes/spaces/newlines)
- * ✅ Debug dialog shows sample keys (mapping vs qty sheet) to reveal mismatches
- *
- * ✅ NEW (Post-step):
- *    - After sync finishes, hides any data row where BOTH:
- *        (MEASUREMENT is blank/0 OR measurement column missing)
- *        AND (QTY is blank/0)
- *      Data row = LOCATION column is non-empty.
+ * ✅ After run: hides rows based on final rule:
+ *    - If MEAS col exists: hide row ONLY when (MEAS is blank/0) AND (QTY is blank/0)
+ *    - If MEAS col missing: hide row when (QTY is blank/0)
+ * ✅ Avoids un-hiding everything; only unhides rows that should be visible
  **************************************************/
 
 const SHEETS = SpreadsheetApp;
@@ -21,10 +18,10 @@ const BOQ_SYNC = {
   // Mapping sheet (script hosted here)
   MAP_TAB: "BOQ-LAYER",
 
-  // Fallback mapping columns (1-based)
+  // Mapping columns (1-based)
   MAP_COL_TARGETED: 2,      // Targeted BOQ Name
-  MAP_COL_GENERATED: 5,     // Generated Layer Name (your sheet shows this often in E)
-  MAP_COL_BLOCKNAME: 6,     // Generated-Block Block Name (your green column)
+  MAP_COL_GENERATED: 5,     // Generated Layer Name (often in E)
+  MAP_COL_BLOCKNAME: 6,     // Generated-Block Block Name (green column)
 
   // Export spreadsheet
   EXPORT_SS_ID: "12AsC0b7_U4dxhfxEZwtrwOXXALAnEEkQm5N8tg_RByM",
@@ -48,7 +45,7 @@ const BOQ_SYNC = {
   MASTER_START_TAB: "Civil",
 
   MASTER_MATCH_COL_FALLBACK: 2,  // scope of work fallback col B
-  MASTER_QTY_COL_FALLBACK: 9,    // QTY = Column I
+  MASTER_QTY_COL_FALLBACK: 9,    // QTY default column I
 
   MASTER_HDR_SCOPE: ["scope of work"],
   MASTER_HDR_LOCATION: ["location"],
@@ -60,12 +57,12 @@ const BOQ_SYNC = {
   SHOW_DIALOG: true,
   DIALOG_TITLE: "Vizdom Sync — BOQ-LAYER → MASTER",
 
-  // Skip row only if BOTH values are 0
+  // Skip write row only if BOTH meas+qty are 0 (if meas col missing => decided by qty only)
   SKIP_WHEN_BOTH_ZERO: true,
 
-  // ✅ NEW: Auto-hide rows where BOTH measurement + qty are 0/blank
-  AUTO_HIDE_ZERO_ROWS: true,
-  HIDE_SCAN_HEADER_ROWS: 20,
+  // Hide behavior after sync
+  APPLY_ROW_HIDING: true,
+  HIDE_START_ROW: 2, // start applying hiding from row 2 (keep header safe)
 };
 
 function onOpen() {
@@ -90,7 +87,9 @@ function syncBoqLayerToMaster() {
     rowsUpdated: 0,
     skippedBothZero: 0,
     notFoundTargets: 0,
-    hiddenRows: 0,
+
+    rowsHidden: 0,
+    rowsUnhidden: 0,
 
     debug: {
       masterDetectedCols: [],
@@ -125,7 +124,7 @@ function syncBoqLayerToMaster() {
       return;
     }
 
-    // 2) Build lookup by targeted BOQ name (master scope match)
+    // 2) Build lookup by targeted BOQ name
     const mappingByTarget = new Map();
     for (const m of mappings) {
       const tKey = normKey_advanced_(m.targeted);
@@ -166,7 +165,7 @@ function syncBoqLayerToMaster() {
         `${tabName}: matchCol=${matchCol}, locationCol=${locationCol}, measurementCol=${measurementCol}, qtyCol=${qtyCol} (detected=${qtyColDetected || "no"})`
       );
 
-      // ✅ Only require LOCATION + QTY col
+      // Require LOCATION + QTY col
       if (!locationCol || !qtyCol) {
         report.tabsSkippedMissingCols.push(`${tabName} (missing LOCATION or QTY column)`);
         continue;
@@ -239,18 +238,30 @@ function syncBoqLayerToMaster() {
           continue;
         }
 
-        // Filter zones where both are 0 (optional)
+        // Filter zones where both are 0 (or if meas col missing => decided by qty only)
         const finalZones = [];
         for (const z of zoneOrder) {
           const meas = toNumber_(zoneTotalsMeas.get(z) || 0);
           const qty = toNumber_(zoneTotalsQty.get(z) || 0);
-          const measZero = !Number.isFinite(meas) || meas === 0;
+
+          const measZero = !measurementCol || (!Number.isFinite(meas) || meas === 0); // if no meas col => treat as 0
           const qtyZero = !Number.isFinite(qty) || qty === 0;
 
-          if (BOQ_SYNC.SKIP_WHEN_BOTH_ZERO && measZero && qtyZero) {
+          let skip = false;
+          if (BOQ_SYNC.SKIP_WHEN_BOTH_ZERO) {
+            if (!measurementCol) {
+              // no measurement col => skip if qty is zero
+              skip = qtyZero;
+            } else {
+              skip = measZero && qtyZero;
+            }
+          }
+
+          if (skip) {
             report.skippedBothZero++;
             continue;
           }
+
           finalZones.push(z);
         }
 
@@ -273,13 +284,12 @@ function syncBoqLayerToMaster() {
             const newRowRange = sh.getRange(r + i, 1, 1, lastCol);
             baseRowRange.copyTo(newRowRange, { contentsOnly: false });
 
-            // Clear left-side columns before LOCATION
             const clearUpto = Math.max(1, locationCol - 1);
             sh.getRange(r + i, 1, 1, clearUpto).clearContent();
           }
 
-          mergeAndCenter_(sh, r, matchCol, needed);
-          if (srNoCol) mergeAndCenter_(sh, r, srNoCol, needed);
+          safeMergeAndCenter_(sh, r, matchCol, needed);
+          if (srNoCol) safeMergeAndCenter_(sh, r, srNoCol, needed);
         }
 
         // Write rows
@@ -304,6 +314,13 @@ function syncBoqLayerToMaster() {
         report.rowsUpdated += needed;
         r += needed;
       }
+
+      // ✅ AFTER SHEET UPDATE: Apply hiding rule for that sheet
+      if (BOQ_SYNC.APPLY_ROW_HIDING) {
+        const res = applyRowHiding_(sh, measurementCol, qtyCol);
+        report.rowsHidden += res.hidden;
+        report.rowsUnhidden += res.unhidden;
+      }
     }
 
     // Not found targets
@@ -313,11 +330,6 @@ function syncBoqLayerToMaster() {
       if (!targetsFoundSomewhere.has(tKey)) notFound++;
     }
     report.notFoundTargets = notFound;
-
-    // ✅ NEW: Auto-hide rows where BOTH measurement + qty are 0/blank
-    if (BOQ_SYNC.AUTO_HIDE_ZERO_ROWS) {
-      report.hiddenRows = hideZeroRowsInMaster_(masterSS, report);
-    }
 
     finalize_(report);
     if (BOQ_SYNC.SHOW_DIALOG) showReportDialog_(ui, report);
@@ -498,7 +510,91 @@ function computeMeasurementFromLayer_(exportSS, layerName, measure) {
 }
 
 /* -------------------------
-   Master helpers
+   Hiding logic (FINAL RULE)
+------------------------- */
+function applyRowHiding_(sh, measurementCol, qtyCol) {
+  const lastRow = sh.getLastRow();
+  const startRow = BOQ_SYNC.HIDE_START_ROW || 2;
+  if (lastRow < startRow) return { hidden: 0, unhidden: 0 };
+
+  const numRows = lastRow - startRow + 1;
+
+  // Display values are best for blanks coming from formulas
+  const qtyDisp = sh.getRange(startRow, qtyCol, numRows, 1).getDisplayValues();
+  let measDisp = null;
+  if (measurementCol) measDisp = sh.getRange(startRow, measurementCol, numRows, 1).getDisplayValues();
+
+  const isZeroOrBlank = (x) => {
+    const t = String(x ?? "").trim();
+    if (t === "" || t === "-") return true;
+    const n = Number(t.replace(/,/g, ""));
+    return Number.isFinite(n) && n === 0;
+  };
+
+  const rowsToHide = [];
+  const rowsToUnhide = [];
+
+  for (let i = 0; i < numRows; i++) {
+    const rowNum = startRow + i;
+
+    const qtyZeroBlank = isZeroOrBlank(qtyDisp[i][0]);
+
+    let shouldHide = false;
+    if (!measurementCol) {
+      // No measurement column -> deciding factor = QTY
+      shouldHide = qtyZeroBlank;
+    } else {
+      // Has measurement column -> hide only when BOTH are blank/zero
+      const measZeroBlank = isZeroOrBlank(measDisp[i][0]);
+      shouldHide = qtyZeroBlank && measZeroBlank;
+    }
+
+    const currentlyHidden = sh.isRowHiddenByUser(rowNum);
+
+    if (shouldHide) rowsToHide.push(rowNum);
+    else if (currentlyHidden) rowsToUnhide.push(rowNum);
+  }
+
+  const hidden = setRowsHidden_(sh, rowsToHide, true);
+  const unhidden = setRowsHidden_(sh, rowsToUnhide, false);
+
+  SpreadsheetApp.flush();
+  return { hidden, unhidden };
+}
+
+function setRowsHidden_(sh, rows, hide) {
+  if (!rows || !rows.length) return 0;
+
+  rows.sort((a, b) => a - b);
+
+  let count = 0;
+  let start = rows[0];
+  let prev = rows[0];
+
+  const flush = (s, e) => {
+    const n = e - s + 1;
+    if (hide) sh.hideRows(s, n);
+    else sh.showRows(s, n);
+    count += n;
+  };
+
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i];
+    if (r === prev + 1) {
+      prev = r;
+      continue;
+    }
+    flush(start, prev);
+    start = r;
+    prev = r;
+  }
+  flush(start, prev);
+
+  return count;
+}
+
+/* -------------------------
+   Helpers
 ------------------------- */
 function getMasterTabsFromStart_(masterSS, startName) {
   const sheets = masterSS.getSheets();
@@ -533,13 +629,49 @@ function findHeaderColContains_(sheet, candidates, scanRows) {
   return null;
 }
 
-function mergeAndCenter_(sh, startRow, col, numRows) {
+// ✅ Avoid merge paste errors by never merging if range intersects existing merges
+// ✅ Avoid merge paste errors by never merging if range intersects existing merges
+function safeMergeAndCenter_(sh, startRow, col, numRows) {
   if (numRows <= 1) return;
+
   const rng = sh.getRange(startRow, col, numRows, 1);
-  if (rng.isPartOfMerge()) rng.breakApart();
+
+  // If ANY merge on the sheet intersects this column+rows block, skip merging
+  if (rangeIntersectsAnyMerge_(sh, startRow, col, numRows, 1)) {
+    rng.setHorizontalAlignment("center");
+    rng.setVerticalAlignment("middle");
+    return;
+  }
+
   rng.merge();
   rng.setHorizontalAlignment("center");
   rng.setVerticalAlignment("middle");
+}
+
+function rangeIntersectsAnyMerge_(sh, row, col, numRows, numCols) {
+  const lastRow = Math.max(sh.getLastRow(), 1);
+  const lastCol = Math.max(sh.getLastColumn(), 1);
+
+  // ✅ getMergedRanges() works on Range, not Sheet
+  const merges = sh.getRange(1, 1, lastRow, lastCol).getMergedRanges();
+  if (!merges || !merges.length) return false;
+
+  const r1 = row, r2 = row + numRows - 1;
+  const c1 = col, c2 = col + numCols - 1;
+
+  for (const mr of merges) {
+    const mr1 = mr.getRow();
+    const mr2 = mr.getRow() + mr.getNumRows() - 1;
+    const mc1 = mr.getColumn();
+    const mc2 = mr.getColumn() + mr.getNumColumns() - 1;
+
+    const rowOverlap = !(r2 < mr1 || r1 > mr2);
+    const colOverlap = !(c2 < mc1 || c1 > mc2);
+
+    if (rowOverlap && colOverlap) return true;
+  }
+
+  return false;
 }
 
 function pushZone_(arr, zone) {
@@ -547,98 +679,6 @@ function pushZone_(arr, zone) {
   if (!arr.includes(z)) arr.push(z);
 }
 
-/* -------------------------
-   ✅ NEW: Auto-hide logic
-------------------------- */
-function hideZeroRowsInMaster_(masterSS, report) {
-  const tabs = getMasterTabsFromStart_(masterSS, BOQ_SYNC.MASTER_START_TAB);
-
-  let hiddenCount = 0;
-  let scannedCount = 0;
-
-  for (const sh of tabs) {
-    const tabName = sh.getName();
-    const lastRow = sh.getLastRow();
-    const lastCol = sh.getLastColumn();
-    if (lastRow < 2 || lastCol < 2) continue;
-
-    const locationCol = findHeaderColContains_(
-      sh,
-      BOQ_SYNC.MASTER_HDR_LOCATION,
-      BOQ_SYNC.HIDE_SCAN_HEADER_ROWS
-    );
-    if (!locationCol) continue;
-
-    const measurementCol = findHeaderColContains_(
-      sh,
-      BOQ_SYNC.MASTER_HDR_MEASUREMENT,
-      BOQ_SYNC.HIDE_SCAN_HEADER_ROWS
-    ); // may be null
-
-    const qtyColDetected = findHeaderColContains_(
-      sh,
-      BOQ_SYNC.MASTER_HDR_QTY,
-      BOQ_SYNC.HIDE_SCAN_HEADER_ROWS
-    );
-    const qtyCol = qtyColDetected || BOQ_SYNC.MASTER_QTY_COL_FALLBACK;
-
-    // scan from row 2 downward (avoid header row)
-    const startRow = 2;
-    const numRows = Math.max(0, lastRow - startRow + 1);
-    if (numRows <= 0) continue;
-
-    const locVals = sh.getRange(startRow, locationCol, numRows, 1).getDisplayValues();
-    const qtyVals = sh.getRange(startRow, qtyCol, numRows, 1).getValues();
-
-    let measVals = null;
-    if (measurementCol) {
-      measVals = sh.getRange(startRow, measurementCol, numRows, 1).getValues();
-    }
-
-    for (let i = 0; i < numRows; i++) {
-      const rowNum = startRow + i;
-
-      // Only treat as a data row if LOCATION is filled
-      const loc = String((locVals[i] && locVals[i][0]) || "").trim();
-      if (!loc) continue;
-
-      const qtyNum = toNumber_(qtyVals[i][0]);
-      const qtyZero = isBlankOrZero_(qtyVals[i][0], qtyNum);
-
-      // If measurement column missing -> treat as 0/blank
-      let measZero = true;
-      if (measVals) {
-        const measNum = toNumber_(measVals[i][0]);
-        measZero = isBlankOrZero_(measVals[i][0], measNum);
-      }
-
-      scannedCount++;
-
-      // ✅ HIDE only if BOTH are blank/0
-      if (measZero && qtyZero) {
-        sh.hideRows(rowNum);
-        hiddenCount++;
-      }
-    }
-
-    report.notes.push(`Auto-hide scan: ${tabName} scanned ${numRows} rows (location-based).`);
-  }
-
-  report.notes.push(`Auto-hide summary: scanned=${scannedCount}, hidden=${hiddenCount}`);
-  return hiddenCount;
-}
-
-function isBlankOrZero_(raw, num) {
-  const s = String(raw == null ? "" : raw).trim();
-  if (s === "") return true;
-  if (Number.isFinite(num) && num === 0) return true;
-  if (!Number.isFinite(num) && /^0+(\.0+)?$/.test(s)) return true;
-  return false;
-}
-
-/* -------------------------
-   Dialog helpers
-------------------------- */
 function finalize_(report) {
   report.finishedAt = new Date();
 }
@@ -658,7 +698,9 @@ function showReportDialog_(ui, report, isError) {
   lines.push(`Rows updated: ${report.rowsUpdated}`);
   lines.push(`Skipped zones (both 0): ${report.skippedBothZero}`);
   lines.push(`Targets not found: ${report.notFoundTargets}`);
-  lines.push(`Rows hidden (both 0/blank): ${report.hiddenRows || 0}`);
+  lines.push("");
+  lines.push(`Rows hidden: ${report.rowsHidden}`);
+  lines.push(`Rows unhidden: ${report.rowsUnhidden}`);
   lines.push("");
 
   lines.push("DEBUG — QTY sheet:");
@@ -683,12 +725,6 @@ function showReportDialog_(ui, report, isError) {
     lines.push("");
     lines.push("Skipped tabs:");
     for (const t of report.tabsSkippedMissingCols) lines.push(` - ${t}`);
-  }
-
-  if (report.notes.length) {
-    lines.push("");
-    lines.push("Notes:");
-    for (const n of report.notes) lines.push(` - ${n}`);
   }
 
   if (report.errors.length) {
