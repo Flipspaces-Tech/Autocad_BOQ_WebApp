@@ -1,15 +1,23 @@
 /**************************************************
- * BOQ-LAYER → MASTER
+ * BOQ-LAYER → MASTER (MEAS + QTY + HIDE ZEROS)
  *
- * MEASUREMENT: from LAYER tab (optional per master tab)
- * QTY: from vis_export_sheet_like tab (required)
+ * MEASUREMENT: from EXPORT "LAYER" tab (optional per master tab)
+ * QTY: from EXPORT "vis_export_sheet_like" tab (required)
  *
- * ✅ Fills QTY even if MEASUREMENT column is missing in that master tab
- * ✅ Strong normalization for name matching (punctuation/dashes/spaces/newlines)
- * ✅ After run: hides rows based on final rule:
- *    - If MEAS col exists: hide row ONLY when (MEAS is blank/0) AND (QTY is blank/0)
- *    - If MEAS col missing: hide row when (QTY is blank/0)
- * ✅ Avoids un-hiding everything; only unhides rows that should be visible
+ * ✅ Writes QTY even if MEASUREMENT column is missing in a master tab
+ * ✅ QTY indexing no longer depends on "BOQ name" merged/carry-forward cells
+ *    - Uses Product as primary key (works even if BOQ name is blank)
+ *    - Also indexes by BOQ name as secondary key (backward compatible)
+ * ✅ Strong normalization for matching (punctuation/dashes/spaces/newlines)
+ * ✅ Skips creating/writing zone rows where BOTH meas & qty are zero/blank (configurable)
+ * ✅ Merges & centers "SCOPE OF WORK" (and SR NO if present) across inserted rows
+ * ✅ After sync: hides rows where BOTH (meas AND qty) are blank/0
+ *    - If measurement column is missing in that tab → deciding factor is only QTY
+ * ✅ Detailed dialog after every run
+ *
+ * Fixes:
+ * - No sh.getMergedRanges() usage (Sheets don’t have it). Only Range.getMergedRanges()
+ * - Avoids “paste partially intersects a merge” by breaking merge safely before insert/copy
  **************************************************/
 
 const SHEETS = SpreadsheetApp;
@@ -18,15 +26,15 @@ const BOQ_SYNC = {
   // Mapping sheet (script hosted here)
   MAP_TAB: "BOQ-LAYER",
 
-  // Mapping columns (1-based)
-  MAP_COL_TARGETED: 2,      // Targeted BOQ Name
-  MAP_COL_GENERATED: 5,     // Generated Layer Name (often in E)
-  MAP_COL_BLOCKNAME: 6,     // Generated-Block Block Name (green column)
+  // Mapping columns (1-based) — adjust if your sheet differs
+  MAP_COL_TARGETED: 2,   // Targeted BOQ Name (master match)
+  MAP_COL_GENERATED: 5,  // Generated Layer Name (for LAYER measurement)
+  MAP_COL_BLOCKNAME: 6,  // Generated-Block / Block Name (for QTY matching)
 
-  // Export spreadsheet
+  // Export spreadsheet (Auto-QA Output)
   EXPORT_SS_ID: "12AsC0b7_U4dxhfxEZwtrwOXXALAnEEkQm5N8tg_RByM",
 
-  // Measurement source
+  // Measurement source tab
   EXPORT_MEASURE_TAB: "LAYER",
   LAYER_HDR_LAYER: "layer",
   LAYER_HDR_ZONE: "zone",
@@ -34,35 +42,39 @@ const BOQ_SYNC = {
   LAYER_HDR_PERIM: "perimeter",
   LAYER_HDR_LENGTH: "length (ft)",
 
-  // QTY source
+  // QTY source tab
   EXPORT_QTY_TAB: "vis_export_sheet_like",
-  QTY_HDR_BOQNAME_PATTERNS: ["BOQ name", "boq_name", "name"],
+  QTY_HDR_PRODUCT_PATTERNS: ["product"],
+  QTY_HDR_BOQNAME_PATTERNS: ["boq name", "boq_name", "name"],
   QTY_HDR_ZONE_PATTERNS: ["zone", "location"],
   QTY_HDR_QTYVALUE_PATTERNS: ["qty_value", "qty value", "qty", "quantity"],
 
-  // Master
+  // Master spreadsheet
   MASTER_SS_ID: "1CVibwjRFz4gTATAeOFUlYzlGZybXILO60OrxwGaFLeY",
   MASTER_START_TAB: "Civil",
 
-  MASTER_MATCH_COL_FALLBACK: 2,  // scope of work fallback col B
-  MASTER_QTY_COL_FALLBACK: 9,    // QTY default column I
+  // Header detection in master
+  MASTER_MATCH_COL_FALLBACK: 2, // usually col B
+  MASTER_QTY_COL_FALLBACK: 9,   // usually col I (QTY)
 
   MASTER_HDR_SCOPE: ["scope of work"],
   MASTER_HDR_LOCATION: ["location"],
-  MASTER_HDR_MEASUREMENT: ["measurement", "qty measured", "measured"], // broaden
+  // Measurement column might be named differently across tabs
+  MASTER_HDR_MEASUREMENT: ["measurement", "qty measured", "measured"],
   MASTER_HDR_QTY: ["qty", "quantity"],
   MASTER_HDR_SRNO: ["sr. no.", "sr no", "sr.no", "sr"],
+
+  // Rules
+  // When building zone rows: skip if BOTH meas & qty are blank/0
+  SKIP_WHEN_BOTH_ZERO: true,
+
+  // After finishing a tab: hide if BOTH meas & qty are blank/0
+  // If measurement column is missing in a tab → hide if qty is blank/0
+  HIDE_ZERO_ROWS_AFTER_SYNC: true,
 
   NUMBER_FORMAT: "0.############",
   SHOW_DIALOG: true,
   DIALOG_TITLE: "Vizdom Sync — BOQ-LAYER → MASTER",
-
-  // Skip write row only if BOTH meas+qty are 0 (if meas col missing => decided by qty only)
-  SKIP_WHEN_BOTH_ZERO: true,
-
-  // Hide behavior after sync
-  APPLY_ROW_HIDING: true,
-  HIDE_START_ROW: 2, // start applying hiding from row 2 (keep header safe)
 };
 
 function onOpen() {
@@ -79,17 +91,21 @@ function syncBoqLayerToMaster() {
   const report = {
     startedAt,
     finishedAt: null,
+
     mappingsTotal: 0,
+
     tabsProcessed: 0,
-    tabsSkippedMissingCols: [],
+    tabsSkipped: [],
+
     targetsMatched: 0,
     rowsInserted: 0,
     rowsUpdated: 0,
     skippedBothZero: 0,
-    notFoundTargets: 0,
 
     rowsHidden: 0,
     rowsUnhidden: 0,
+
+    notFoundTargets: 0,
 
     debug: {
       masterDetectedCols: [],
@@ -97,7 +113,7 @@ function syncBoqLayerToMaster() {
       qtyRowsScanned: 0,
       qtyUniqueBoqKeys: 0,
       qtyMatchesFound: 0,
-      sampleMappingBlockKeys: [],
+      sampleMappingQtyKeys: [],
       sampleQtyBoqKeys: [],
     },
 
@@ -124,7 +140,7 @@ function syncBoqLayerToMaster() {
       return;
     }
 
-    // 2) Build lookup by targeted BOQ name
+    // 2) Build mapping lookup by targeted (master scope of work)
     const mappingByTarget = new Map();
     for (const m of mappings) {
       const tKey = normKey_advanced_(m.targeted);
@@ -132,13 +148,13 @@ function syncBoqLayerToMaster() {
       mappingByTarget.get(tKey).push(m);
     }
 
-    // 3) Build QTY index once
+    // 3) Build QTY index once (by normalized Product primary, BOQ name secondary)
     const qtyIndex = buildQtyIndex_(exportSS, report);
 
-    // 4) Measurement cache
+    // 4) Measurement cache (layerName+measure -> breakdown)
     const measCache = new Map();
 
-    // 5) Iterate master tabs
+    // 5) Iterate master tabs from start
     const tabs = getMasterTabsFromStart_(masterSS, BOQ_SYNC.MASTER_START_TAB);
     if (!tabs.length) throw new Error(`Start tab "${BOQ_SYNC.MASTER_START_TAB}" not found in MASTER.`);
 
@@ -152,25 +168,32 @@ function syncBoqLayerToMaster() {
 
       report.tabsProcessed++;
 
+      // detect columns
       const matchCol =
-        findHeaderColContains_(sh, BOQ_SYNC.MASTER_HDR_SCOPE, 15) || BOQ_SYNC.MASTER_MATCH_COL_FALLBACK;
+        findHeaderColContains_(sh, BOQ_SYNC.MASTER_HDR_SCOPE, 20) ||
+        BOQ_SYNC.MASTER_MATCH_COL_FALLBACK;
 
-      const locationCol = findHeaderColContains_(sh, BOQ_SYNC.MASTER_HDR_LOCATION, 15);
-      const measurementCol = findHeaderColContains_(sh, BOQ_SYNC.MASTER_HDR_MEASUREMENT, 15); // may be null
-      const qtyColDetected = findHeaderColContains_(sh, BOQ_SYNC.MASTER_HDR_QTY, 15);
+      const locationCol = findHeaderColContains_(sh, BOQ_SYNC.MASTER_HDR_LOCATION, 20);
+
+      // measurement may be absent in many tabs
+      const measurementCol = findHeaderColContains_(sh, BOQ_SYNC.MASTER_HDR_MEASUREMENT, 20);
+
+      const qtyColDetected = findHeaderColContains_(sh, BOQ_SYNC.MASTER_HDR_QTY, 20);
       const qtyCol = qtyColDetected || BOQ_SYNC.MASTER_QTY_COL_FALLBACK;
-      const srNoCol = findHeaderColContains_(sh, BOQ_SYNC.MASTER_HDR_SRNO, 15);
+
+      const srNoCol = findHeaderColContains_(sh, BOQ_SYNC.MASTER_HDR_SRNO, 20);
 
       report.debug.masterDetectedCols.push(
-        `${tabName}: matchCol=${matchCol}, locationCol=${locationCol}, measurementCol=${measurementCol}, qtyCol=${qtyCol} (detected=${qtyColDetected || "no"})`
+        `${tabName}: matchCol=${matchCol}, locationCol=${locationCol}, measurementCol=${measurementCol || "null"}, qtyCol=${qtyCol} (detected=${qtyColDetected || "no"})`
       );
 
-      // Require LOCATION + QTY col
+      // Minimal requirement: LOCATION + QTY must exist
       if (!locationCol || !qtyCol) {
-        report.tabsSkippedMissingCols.push(`${tabName} (missing LOCATION or QTY column)`);
+        report.tabsSkipped.push(`${tabName} (missing LOCATION or QTY column)`);
         continue;
       }
 
+      // snapshot scope values (keep aligned after insert)
       const scopeVals = sh.getRange(1, matchCol, lastRow, 1).getDisplayValues();
 
       let r = 1;
@@ -178,11 +201,19 @@ function syncBoqLayerToMaster() {
         const scopeText = String((scopeVals[r - 1] && scopeVals[r - 1][0]) || "").trim();
         if (!scopeText) { r++; continue; }
 
-        // handle merged
         const cell = sh.getRange(r, matchCol);
+
+        // If merged: only process top-left; also store merged range to break safely if needed
+        let mergedRange = null;
         if (cell.isPartOfMerge()) {
-          const mr = cell.getMergedRanges()[0];
-          if (!(mr.getRow() === r && mr.getColumn() === matchCol)) { r++; continue; }
+          const mrs = cell.getMergedRanges();
+          mergedRange = (mrs && mrs.length) ? mrs[0] : null;
+
+          if (mergedRange) {
+            const isTopLeft =
+              mergedRange.getRow() === r && mergedRange.getColumn() === matchCol;
+            if (!isTopLeft) { r++; continue; }
+          }
         }
 
         const rowKey = normKey_advanced_(scopeText);
@@ -192,76 +223,91 @@ function syncBoqLayerToMaster() {
         report.targetsMatched++;
         targetsFoundSomewhere.add(rowKey);
 
-        // ---- zones union from MEAS + QTY
+        // ---- Build union zones from MEAS + QTY (in stable order)
+        const zoneOrder = [];
         const zoneTotalsMeas = new Map();
         const zoneTotalsQty = new Map();
-        const zoneOrder = [];
 
         // MEAS (optional)
+        // if (measurementCol) {
+        //   for (const m of mapList) {
+        //     const cacheKey = `${normKey_advanced_(m.generated)}||${normKey_advanced_(m.measure)}`;
+        //     let breakdown = measCache.get(cacheKey);
+        //     if (!breakdown) {
+        //       breakdown = computeMeasurementFromLayer_(exportSS, m.generated, m.measure);
+        //       measCache.set(cacheKey, breakdown);
+        //     }
+
+        //     for (const z of breakdown.order) pushZone_(zoneOrder, z);
+
+        //     for (const [z, v] of breakdown.byZone.entries()) {
+        //       const n = toNumber_(v);
+        //       if (!Number.isFinite(n)) continue;
+        //       zoneTotalsMeas.set(z, (zoneTotalsMeas.get(z) || 0) + n);
+        //     }
+        //   }
+        // }
         if (measurementCol) {
-          for (const m of mapList) {
-            const cacheKey = `${normKey_advanced_(m.generated)}||${normKey_advanced_(m.measure)}`;
-            let breakdown = measCache.get(cacheKey);
-            if (!breakdown) {
-              breakdown = computeMeasurementFromLayer_(exportSS, m.generated, m.measure);
-              measCache.set(cacheKey, breakdown);
+            for (const m of mapList) {
+              if (!m.generated) continue; // ✅ no layer name → no measurement
+
+              const cacheKey = `${normKey_advanced_(m.generated)}||${normKey_advanced_(m.measure)}`;
+              let breakdown = measCache.get(cacheKey);
+              if (!breakdown) {
+                breakdown = computeMeasurementFromLayer_(exportSS, m.generated, m.measure);
+                measCache.set(cacheKey, breakdown);
+              }
+
+              for (const z of breakdown.order) pushZone_(zoneOrder, z);
+
+              for (const [z, v] of breakdown.byZone.entries()) {
+                const n = toNumber_(v);
+                if (!Number.isFinite(n)) continue;
+                zoneTotalsMeas.set(z, (zoneTotalsMeas.get(z) || 0) + n);
+              }
             }
-            for (const z of breakdown.order) pushZone_(zoneOrder, z);
-            for (const [z, v] of breakdown.byZone.entries()) {
+          }
+
+        // QTY (does NOT depend on BOQ-name presence anymore)
+        for (const m of mapList) {
+          const candidateQtyKeys = getCandidateQtyKeys_(m); // targeted -> blockName -> generated
+          for (const key of candidateQtyKeys) {
+            if (!key) continue;
+
+            const rec = qtyIndex.get(key);
+            if (!rec) continue;
+
+            report.debug.qtyMatchesFound++;
+
+            for (const z of rec.order) pushZone_(zoneOrder, z);
+
+            for (const [z, v] of rec.byZone.entries()) {
               const n = toNumber_(v);
               if (!Number.isFinite(n)) continue;
-              zoneTotalsMeas.set(z, (zoneTotalsMeas.get(z) || 0) + n);
+              zoneTotalsQty.set(z, (zoneTotalsQty.get(z) || 0) + n);
             }
+
+            // once matched with one candidate key, don’t double-add by other keys
+            break;
           }
         }
 
-        // QTY (from index)
-        for (const m of mapList) {
-          if (!m.blockName) continue;
-          const bKey = normKey_advanced_(m.blockName);
+        // If we got no zones from either source, nothing to write
+        if (!zoneOrder.length) { r++; continue; }
 
-          const rec = qtyIndex.get(bKey);
-          if (!rec) continue;
-
-          report.debug.qtyMatchesFound++;
-
-          for (const z of rec.order) pushZone_(zoneOrder, z);
-          for (const [z, v] of rec.byZone.entries()) {
-            const n = toNumber_(v);
-            if (!Number.isFinite(n)) continue;
-            zoneTotalsQty.set(z, (zoneTotalsQty.get(z) || 0) + n);
-          }
-        }
-
-        if (!zoneOrder.length) {
-          r++;
-          continue;
-        }
-
-        // Filter zones where both are 0 (or if meas col missing => decided by qty only)
+        // ---- Filter zones: skip if BOTH meas & qty are blank/0
         const finalZones = [];
         for (const z of zoneOrder) {
           const meas = toNumber_(zoneTotalsMeas.get(z) || 0);
           const qty = toNumber_(zoneTotalsQty.get(z) || 0);
 
-          const measZero = !measurementCol || (!Number.isFinite(meas) || meas === 0); // if no meas col => treat as 0
+          const measZero = !Number.isFinite(meas) || meas === 0;
           const qtyZero = !Number.isFinite(qty) || qty === 0;
 
-          let skip = false;
-          if (BOQ_SYNC.SKIP_WHEN_BOTH_ZERO) {
-            if (!measurementCol) {
-              // no measurement col => skip if qty is zero
-              skip = qtyZero;
-            } else {
-              skip = measZero && qtyZero;
-            }
-          }
-
-          if (skip) {
+          if (BOQ_SYNC.SKIP_WHEN_BOTH_ZERO && measZero && qtyZero) {
             report.skippedBothZero++;
             continue;
           }
-
           finalZones.push(z);
         }
 
@@ -269,30 +315,45 @@ function syncBoqLayerToMaster() {
 
         const needed = finalZones.length;
 
-        // Insert rows if needed
+        // ---- Insert rows if needed
         if (needed > 1) {
+          if (mergedRange) mergedRange.breakApart();
+
+          if (srNoCol) {
+            const srCell = sh.getRange(r, srNoCol);
+            if (srCell.isPartOfMerge()) {
+              const srMr = srCell.getMergedRanges();
+              if (srMr && srMr.length) srMr[0].breakApart();
+            }
+          }
+
           sh.insertRowsAfter(r, needed - 1);
           report.rowsInserted += (needed - 1);
 
+          // keep scopeVals aligned
           const blanks = Array.from({ length: needed - 1 }, () => [""]);
           scopeVals.splice(r, 0, ...blanks);
 
           lastRow += (needed - 1);
 
+          // Copy formatting/formulas row → new rows
           const baseRowRange = sh.getRange(r, 1, 1, lastCol);
+
           for (let i = 1; i < needed; i++) {
             const newRowRange = sh.getRange(r + i, 1, 1, lastCol);
             baseRowRange.copyTo(newRowRange, { contentsOnly: false });
 
+            // Clear left-side columns before LOCATION so split rows look clean
             const clearUpto = Math.max(1, locationCol - 1);
             sh.getRange(r + i, 1, 1, clearUpto).clearContent();
           }
 
-          safeMergeAndCenter_(sh, r, matchCol, needed);
-          if (srNoCol) safeMergeAndCenter_(sh, r, srNoCol, needed);
+          // Merge & center scope / sr no across newly created block
+          mergeAndCenterSafe_(sh, r, matchCol, needed);
+          if (srNoCol) mergeAndCenterSafe_(sh, r, srNoCol, needed);
         }
 
-        // Write rows
+        // ---- Write rows (LOCATION, MEAS if present, QTY always)
         for (let i = 0; i < needed; i++) {
           const zone = finalZones[i];
 
@@ -315,11 +376,11 @@ function syncBoqLayerToMaster() {
         r += needed;
       }
 
-      // ✅ AFTER SHEET UPDATE: Apply hiding rule for that sheet
-      if (BOQ_SYNC.APPLY_ROW_HIDING) {
-        const res = applyRowHiding_(sh, measurementCol, qtyCol);
-        report.rowsHidden += res.hidden;
-        report.rowsUnhidden += res.unhidden;
+      // ---- After finishing this tab: hide rows based on final logic
+      if (BOQ_SYNC.HIDE_ZERO_ROWS_AFTER_SYNC) {
+        const hideRes = hideZeroRowsInTab_(sh, matchCol, measurementCol, qtyCol);
+        report.rowsHidden += hideRes.hidden;
+        report.rowsUnhidden += hideRes.unhidden;
       }
     }
 
@@ -341,9 +402,9 @@ function syncBoqLayerToMaster() {
   }
 }
 
-/* -------------------------
-   Read mappings
-------------------------- */
+/* =========================================================
+   Mapping read
+========================================================= */
 function readMappings_(mapSh, report) {
   const lastRow = mapSh.getLastRow();
   const lastCol = mapSh.getLastColumn();
@@ -354,29 +415,56 @@ function readMappings_(mapSh, report) {
   const out = [];
   for (let r = 1; r < grid.length; r++) {
     const targeted = String(grid[r][BOQ_SYNC.MAP_COL_TARGETED - 1] || "").trim();
-    const generated = String(grid[r][BOQ_SYNC.MAP_COL_GENERATED - 1] || "").trim();
-    const blockName = String(grid[r][BOQ_SYNC.MAP_COL_BLOCKNAME - 1] || "").trim();
+    const generated = String(grid[r][BOQ_SYNC.MAP_COL_GENERATED - 1] || "").trim();  // may be blank
+    const blockName = String(grid[r][BOQ_SYNC.MAP_COL_BLOCKNAME - 1] || "").trim();  // may be blank
 
-    if (!targeted || !generated) continue;
+    // Must have the master match text
+    if (!targeted) continue;
+
+    // ✅ allow qty-only mappings (generated can be blank)
+    // But if BOTH are blank, we can’t do anything useful.
+    if (!generated && !blockName) continue;
 
     out.push({
       targeted,
-      generated,
-      blockName,
+      generated,     // can be ""
+      blockName,     // can be ""
       measure: "Area",
     });
   }
 
-  for (const m of out.slice(0, 8)) {
-    report.debug.sampleMappingBlockKeys.push(`${m.blockName}  =>  ${normKey_advanced_(m.blockName)}`);
+  // samples for debug
+  for (const m of out.slice(0, 10)) {
+    const keys = getCandidateQtyKeys_(m).filter(Boolean);
+    report.debug.sampleMappingQtyKeys.push(
+      `${m.blockName || "(blank)"} | ${m.generated || "(blank)"} | ${m.targeted || "(blank)"}  =>  [${keys.join(" , ")}]`
+    );
   }
 
   return out;
 }
 
-/* -------------------------
-   Build QTY index
-------------------------- */
+function getCandidateQtyKeys_(m) {
+  // ✅ Prefer targeted first (matches your QTY sheet’s BOQ/Product better)
+  const keys = [];
+  if (m.targeted) keys.push(normKey_advanced_(m.targeted));
+  if (m.blockName) keys.push(normKey_advanced_(m.blockName));
+  if (m.generated) keys.push(normKey_advanced_(m.generated));
+
+  const out = [];
+  const seen = new Set();
+  for (const k of keys) {
+    if (!k) continue;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(k);
+  }
+  return out;
+}
+
+/* =========================================================
+   Build QTY index (NOT dependent on BOQ merged cells)
+========================================================= */
 function buildQtyIndex_(exportSS, report) {
   const sh = exportSS.getSheetByName(BOQ_SYNC.EXPORT_QTY_TAB);
   if (!sh) throw new Error(`QTY tab not found: ${BOQ_SYNC.EXPORT_QTY_TAB}`);
@@ -386,34 +474,33 @@ function buildQtyIndex_(exportSS, report) {
 
   const header = dr[0].map(v => String(v || "").trim());
 
+  const idxProduct = findHeaderIndexContains_(header, BOQ_SYNC.QTY_HDR_PRODUCT_PATTERNS);
   const idxBoq = findHeaderIndexContains_(header, BOQ_SYNC.QTY_HDR_BOQNAME_PATTERNS);
   const idxZone = findHeaderIndexContains_(header, BOQ_SYNC.QTY_HDR_ZONE_PATTERNS);
   const idxQty = findHeaderIndexContains_(header, BOQ_SYNC.QTY_HDR_QTYVALUE_PATTERNS);
 
   report.debug.qtyDetectedCols.push(
-    `QTY tab "${BOQ_SYNC.EXPORT_QTY_TAB}": idxBoq=${idxBoq}, idxZone=${idxZone}, idxQty=${idxQty} (0-based)`
+    `QTY tab "${BOQ_SYNC.EXPORT_QTY_TAB}": idxProduct=${idxProduct}, idxBoq=${idxBoq}, idxZone=${idxZone}, idxQty=${idxQty} (0-based)`
   );
 
-  if (idxBoq === -1 || idxZone === -1 || idxQty === -1) {
+  if (idxZone === -1 || idxQty === -1) {
     throw new Error(
-      `QTY tab header detect failed. Found idxBoq=${idxBoq}, idxZone=${idxZone}, idxQty=${idxQty}. Check row 1 headers.`
+      `QTY tab header detect failed. Found idxZone=${idxZone}, idxQty=${idxQty}. Check row 1 headers.`
+    );
+  }
+  if (idxProduct === -1 && idxBoq === -1) {
+    throw new Error(
+      `QTY tab must have either "Product" or "BOQ name" header. Found idxProduct=${idxProduct}, idxBoq=${idxBoq}.`
     );
   }
 
   report.debug.qtyRowsScanned = dr.length - 1;
 
   const index = new Map();
-  let currentBoq = "";
 
-  for (let r = 1; r < dr.length; r++) {
-    const boqCell = String(dr[r][idxBoq] || "").trim();
-    if (boqCell) currentBoq = boqCell;
-    if (!currentBoq) continue;
-
-    const key = normKey_advanced_(currentBoq);
-    const zone = String(dr[r][idxZone] || "").trim() || "misc";
-    const qty = toNumber_(dr[r][idxQty]);
-    if (!Number.isFinite(qty)) continue;
+  function addToIndex(keyRaw, zone, qty) {
+    const key = normKey_advanced_(keyRaw);
+    if (!key) return;
 
     if (!index.has(key)) index.set(key, { order: [], byZone: new Map() });
     const rec = index.get(key);
@@ -422,13 +509,28 @@ function buildQtyIndex_(exportSS, report) {
     rec.byZone.set(zone, (rec.byZone.get(zone) || 0) + qty);
   }
 
+  for (let r = 1; r < dr.length; r++) {
+    const product = idxProduct !== -1 ? String(dr[r][idxProduct] || "").trim() : "";
+    const boqName = idxBoq !== -1 ? String(dr[r][idxBoq] || "").trim() : "";
+
+    const zone = String(dr[r][idxZone] || "").trim() || "misc";
+    const qty = toNumber_(dr[r][idxQty]);
+    if (!Number.isFinite(qty)) continue;
+
+    // ✅ Primary: Product (works even if BOQ name is blank)
+    if (product) addToIndex(product, zone, qty);
+
+    // ✅ Secondary: BOQ name (backward compatibility)
+    if (boqName) addToIndex(boqName, zone, qty);
+  }
+
   report.debug.qtyUniqueBoqKeys = index.size;
 
   let i = 0;
   for (const [k] of index.entries()) {
     report.debug.sampleQtyBoqKeys.push(k);
     i++;
-    if (i >= 12) break;
+    if (i >= 14) break;
   }
 
   return index;
@@ -444,9 +546,9 @@ function findHeaderIndexContains_(headerRow, patterns) {
   return -1;
 }
 
-/* -------------------------
+/* =========================================================
    Measurement from LAYER
-------------------------- */
+========================================================= */
 function computeMeasurementFromLayer_(exportSS, layerName, measure) {
   const sh = exportSS.getSheetByName(BOQ_SYNC.EXPORT_MEASURE_TAB);
   if (!sh) throw new Error(`Export MEAS tab not found: ${BOQ_SYNC.EXPORT_MEASURE_TAB}`);
@@ -509,93 +611,51 @@ function computeMeasurementFromLayer_(exportSS, layerName, measure) {
   return { order, byZone };
 }
 
-/* -------------------------
-   Hiding logic (FINAL RULE)
-------------------------- */
-function applyRowHiding_(sh, measurementCol, qtyCol) {
+/* =========================================================
+   HIDE rows logic (post-sync)
+========================================================= */
+function hideZeroRowsInTab_(sh, matchCol, measurementCol, qtyCol) {
   const lastRow = sh.getLastRow();
-  const startRow = BOQ_SYNC.HIDE_START_ROW || 2;
-  if (lastRow < startRow) return { hidden: 0, unhidden: 0 };
+  if (lastRow < 2) return { hidden: 0, unhidden: 0 };
 
-  const numRows = lastRow - startRow + 1;
+  const qtyVals = sh.getRange(1, qtyCol, lastRow, 1).getValues();
+  const measVals = measurementCol ? sh.getRange(1, measurementCol, lastRow, 1).getValues() : null;
 
-  // Display values are best for blanks coming from formulas
-  const qtyDisp = sh.getRange(startRow, qtyCol, numRows, 1).getDisplayValues();
-  let measDisp = null;
-  if (measurementCol) measDisp = sh.getRange(startRow, measurementCol, numRows, 1).getDisplayValues();
+  let hidden = 0;
+  let unhidden = 0;
 
-  const isZeroOrBlank = (x) => {
-    const t = String(x ?? "").trim();
-    if (t === "" || t === "-") return true;
-    const n = Number(t.replace(/,/g, ""));
-    return Number.isFinite(n) && n === 0;
-  };
+  for (let r = 2; r <= lastRow; r++) {
+    const scope = String(sh.getRange(r, matchCol).getDisplayValue() || "").trim();
+    if (!scope) continue;
 
-  const rowsToHide = [];
-  const rowsToUnhide = [];
+    const qty = toNumber_(qtyVals[r - 1][0]);
+    const qtyZero = !Number.isFinite(qty) || qty === 0;
 
-  for (let i = 0; i < numRows; i++) {
-    const rowNum = startRow + i;
-
-    const qtyZeroBlank = isZeroOrBlank(qtyDisp[i][0]);
-
-    let shouldHide = false;
     if (!measurementCol) {
-      // No measurement column -> deciding factor = QTY
-      shouldHide = qtyZeroBlank;
-    } else {
-      // Has measurement column -> hide only when BOTH are blank/zero
-      const measZeroBlank = isZeroOrBlank(measDisp[i][0]);
-      shouldHide = qtyZeroBlank && measZeroBlank;
+      if (qtyZero) {
+        if (!sh.isRowHiddenByUser(r)) { sh.hideRows(r); hidden++; }
+      } else {
+        if (sh.isRowHiddenByUser(r)) { sh.showRows(r); unhidden++; }
+      }
+      continue;
     }
 
-    const currentlyHidden = sh.isRowHiddenByUser(rowNum);
+    const meas = toNumber_(measVals[r - 1][0]);
+    const measZero = !Number.isFinite(meas) || meas === 0;
 
-    if (shouldHide) rowsToHide.push(rowNum);
-    else if (currentlyHidden) rowsToUnhide.push(rowNum);
+    if (qtyZero && measZero) {
+      if (!sh.isRowHiddenByUser(r)) { sh.hideRows(r); hidden++; }
+    } else {
+      if (sh.isRowHiddenByUser(r)) { sh.showRows(r); unhidden++; }
+    }
   }
 
-  const hidden = setRowsHidden_(sh, rowsToHide, true);
-  const unhidden = setRowsHidden_(sh, rowsToUnhide, false);
-
-  SpreadsheetApp.flush();
   return { hidden, unhidden };
 }
 
-function setRowsHidden_(sh, rows, hide) {
-  if (!rows || !rows.length) return 0;
-
-  rows.sort((a, b) => a - b);
-
-  let count = 0;
-  let start = rows[0];
-  let prev = rows[0];
-
-  const flush = (s, e) => {
-    const n = e - s + 1;
-    if (hide) sh.hideRows(s, n);
-    else sh.showRows(s, n);
-    count += n;
-  };
-
-  for (let i = 1; i < rows.length; i++) {
-    const r = rows[i];
-    if (r === prev + 1) {
-      prev = r;
-      continue;
-    }
-    flush(start, prev);
-    start = r;
-    prev = r;
-  }
-  flush(start, prev);
-
-  return count;
-}
-
-/* -------------------------
-   Helpers
-------------------------- */
+/* =========================================================
+   Master helpers
+========================================================= */
 function getMasterTabsFromStart_(masterSS, startName) {
   const sheets = masterSS.getSheets();
   const startKey = normKey_advanced_(startName);
@@ -613,7 +673,7 @@ function getMasterTabsFromStart_(masterSS, startName) {
 
 function findHeaderColContains_(sheet, candidates, scanRows) {
   const lastCol = sheet.getLastColumn();
-  const rows = Math.min(scanRows || 15, sheet.getLastRow());
+  const rows = Math.min(scanRows || 20, sheet.getLastRow());
   if (rows < 1 || lastCol < 1) return null;
 
   const grid = sheet.getRange(1, 1, rows, lastCol).getDisplayValues();
@@ -629,18 +689,17 @@ function findHeaderColContains_(sheet, candidates, scanRows) {
   return null;
 }
 
-// ✅ Avoid merge paste errors by never merging if range intersects existing merges
-// ✅ Avoid merge paste errors by never merging if range intersects existing merges
-function safeMergeAndCenter_(sh, startRow, col, numRows) {
+/* =========================================================
+   Formatting helpers
+========================================================= */
+function mergeAndCenterSafe_(sh, startRow, col, numRows) {
   if (numRows <= 1) return;
 
   const rng = sh.getRange(startRow, col, numRows, 1);
 
-  // If ANY merge on the sheet intersects this column+rows block, skip merging
-  if (rangeIntersectsAnyMerge_(sh, startRow, col, numRows, 1)) {
-    rng.setHorizontalAlignment("center");
-    rng.setVerticalAlignment("middle");
-    return;
+  if (rng.isPartOfMerge()) {
+    const mrs = rng.getMergedRanges();
+    for (const mr of mrs) mr.breakApart();
   }
 
   rng.merge();
@@ -648,37 +707,9 @@ function safeMergeAndCenter_(sh, startRow, col, numRows) {
   rng.setVerticalAlignment("middle");
 }
 
-function rangeIntersectsAnyMerge_(sh, row, col, numRows, numCols) {
-  const lastRow = Math.max(sh.getLastRow(), 1);
-  const lastCol = Math.max(sh.getLastColumn(), 1);
-
-  // ✅ getMergedRanges() works on Range, not Sheet
-  const merges = sh.getRange(1, 1, lastRow, lastCol).getMergedRanges();
-  if (!merges || !merges.length) return false;
-
-  const r1 = row, r2 = row + numRows - 1;
-  const c1 = col, c2 = col + numCols - 1;
-
-  for (const mr of merges) {
-    const mr1 = mr.getRow();
-    const mr2 = mr.getRow() + mr.getNumRows() - 1;
-    const mc1 = mr.getColumn();
-    const mc2 = mr.getColumn() + mr.getNumColumns() - 1;
-
-    const rowOverlap = !(r2 < mr1 || r1 > mr2);
-    const colOverlap = !(c2 < mc1 || c1 > mc2);
-
-    if (rowOverlap && colOverlap) return true;
-  }
-
-  return false;
-}
-
-function pushZone_(arr, zone) {
-  const z = (zone && String(zone).trim()) ? String(zone).trim() : "misc";
-  if (!arr.includes(z)) arr.push(z);
-}
-
+/* =========================================================
+   Dialog helpers
+========================================================= */
 function finalize_(report) {
   report.finishedAt = new Date();
 }
@@ -697,34 +728,32 @@ function showReportDialog_(ui, report, isError) {
   lines.push(`Rows inserted: ${report.rowsInserted}`);
   lines.push(`Rows updated: ${report.rowsUpdated}`);
   lines.push(`Skipped zones (both 0): ${report.skippedBothZero}`);
-  lines.push(`Targets not found: ${report.notFoundTargets}`);
-  lines.push("");
   lines.push(`Rows hidden: ${report.rowsHidden}`);
   lines.push(`Rows unhidden: ${report.rowsUnhidden}`);
+  lines.push(`Targets not found: ${report.notFoundTargets}`);
   lines.push("");
 
   lines.push("DEBUG — QTY sheet:");
   for (const s of report.debug.qtyDetectedCols) lines.push(` - ${s}`);
   lines.push(` - rows scanned: ${report.debug.qtyRowsScanned}`);
   lines.push(` - unique BOQ keys: ${report.debug.qtyUniqueBoqKeys}`);
-  lines.push(` - qty matches found: ${report.debug.qtyMatchesFound}`);
   lines.push("");
 
-  lines.push("DEBUG — sample mapping block keys (raw => normalized):");
-  for (const s of report.debug.sampleMappingBlockKeys) lines.push(` - ${s}`);
+  lines.push("DEBUG — sample mapping qty keys (raw => candidates):");
+  for (const s of report.debug.sampleMappingQtyKeys.slice(0, 10)) lines.push(` - ${s}`);
   lines.push("");
 
-  lines.push("DEBUG — sample QTY BOQ keys (normalized):");
+  lines.push("DEBUG — sample QTY keys (normalized):");
   for (const s of report.debug.sampleQtyBoqKeys) lines.push(` - ${s}`);
   lines.push("");
 
   lines.push("DEBUG — Master detected columns:");
   for (const s of report.debug.masterDetectedCols) lines.push(` - ${s}`);
 
-  if (report.tabsSkippedMissingCols.length) {
+  if (report.tabsSkipped.length) {
     lines.push("");
     lines.push("Skipped tabs:");
-    for (const t of report.tabsSkippedMissingCols) lines.push(` - ${t}`);
+    for (const t of report.tabsSkipped) lines.push(` - ${t}`);
   }
 
   if (report.errors.length) {
@@ -740,11 +769,26 @@ function showReportDialog_(ui, report, isError) {
   ui.alert(title, lines.join("\n"), ui.ButtonSet.OK);
 }
 
+/* =========================================================
+   Utils
+========================================================= */
+function pushZone_(arr, zone) {
+  const z = (zone && String(zone).trim()) ? String(zone).trim() : "misc";
+  if (!arr.includes(z)) arr.push(z);
+}
+
+function toNumber_(v) {
+  if (v == null || v === "") return NaN;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : NaN;
+}
+
 /**
  * Strong normalization:
  * - lowercase
- * - replace all non-alphanum with spaces
- * - normalize all dash types, newlines, NBSP
+ * - replace NBSP/newlines
+ * - normalize dash variants
+ * - replace all non-alphanum with space
  * - collapse spaces
  */
 function normKey_advanced_(s) {
@@ -758,10 +802,4 @@ function normKey_advanced_(s) {
   t = t.replace(/[^a-z0-9]+/g, " ");
   t = t.replace(/\s+/g, " ").trim();
   return t;
-}
-
-function toNumber_(v) {
-  if (v == null || v === "") return NaN;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : NaN;
 }
