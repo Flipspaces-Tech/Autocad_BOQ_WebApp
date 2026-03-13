@@ -28,7 +28,7 @@ const BOQ_SYNC = {
 
   // Mapping columns (1-based) — adjust if your sheet differs
   MAP_COL_TARGETED: 2,   // Targeted BOQ Name (master match)
-  MAP_COL_GENERATED: 5,  // Generated Layer Name (for LAYER measurement)
+  MAP_COL_GENERATED: 4,  // Generated Layer Name (for LAYER measurement)
   MAP_COL_BLOCKNAME: 6,  // Generated-Block / Block Name (for QTY matching)
 
   // Export spreadsheet (Auto-QA Output)
