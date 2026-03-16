@@ -56,7 +56,7 @@ const BOQ_SYNC = {
   HIDE_ZERO_ROWS_AFTER_SYNC: true,
 
   NUMBER_FORMAT: "0.############",
-  SHOW_DIALOG: false, // popup handles success/error UI now
+  SHOW_DIALOG: false,
   DIALOG_TITLE: "Vizdom Sync — BOQ-LAYER → MASTER",
 
   // latest generated working copy
@@ -119,21 +119,18 @@ function launchSyncBoqLayerToMasterUi() {
           }
           .barWrap {
             width: 100%;
-            height: 10px;
-            background: #e8f0fe;
+            height: 12px;
+            background: #e6e6e6;
             border-radius: 999px;
             overflow: hidden;
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.08);
           }
           .bar {
-            width: 35%;
+            width: 0%;
             height: 100%;
-            background: linear-gradient(90deg, #0b57d0, #7baaf7);
+            background: linear-gradient(90deg, #34a853, #66bb6a);
             border-radius: 999px;
-            animation: movebar 1.5s ease-in-out infinite;
-          }
-          @keyframes movebar {
-            0% { margin-left: -35%; }
-            100% { margin-left: 100%; }
+            transition: width 0.45s ease;
           }
           .muted {
             color: #5f6368;
@@ -202,7 +199,7 @@ function launchSyncBoqLayerToMasterUi() {
             </div>
 
             <div class="barWrap">
-              <div class="bar"></div>
+              <div class="bar" id="progressBar"></div>
             </div>
 
             <div class="muted" id="hintText">
@@ -217,49 +214,62 @@ function launchSyncBoqLayerToMasterUi() {
           const statusText = document.getElementById("statusText");
           const runningView = document.getElementById("runningView");
           const doneView = document.getElementById("doneView");
+          const progressBar = document.getElementById("progressBar");
 
           const stagedMessages = [
-            "Starting sync and creating a new master copy...",
-            "Reading BOQ-LAYER mappings...",
-            "Reading export measurement and quantity data...",
-            "Processing master tabs and writing rows...",
-            "Applying hide/show logic and finalizing report..."
+            { text: "Starting sync and creating a new master copy...", pct: 10 },
+            { text: "Reading BOQ-LAYER mappings...", pct: 25 },
+            { text: "Reading export measurement and quantity data...", pct: 45 },
+            { text: "Processing master tabs and writing rows...", pct: 72 },
+            { text: "Applying hide/show logic and finalizing report...", pct: 92 }
           ];
 
           let i = 0;
+          progressBar.style.width = "6%";
+          statusText.textContent = stagedMessages[0].text;
+
           const timer = setInterval(() => {
-            i = (i + 1) % stagedMessages.length;
-            statusText.textContent = stagedMessages[i];
+            i++;
+            if (i >= stagedMessages.length) {
+              i = stagedMessages.length - 1;
+            }
+            statusText.textContent = stagedMessages[i].text;
+            progressBar.style.width = stagedMessages[i].pct + "%";
           }, 1800);
 
           google.script.run
             .withSuccessHandler((result) => {
               clearInterval(timer);
-              runningView.style.display = "none";
-              doneView.style.display = "block";
+              progressBar.style.width = "100%";
+              statusText.textContent = "Sync completed successfully.";
 
-              const safe = (v) => (v == null ? "" : String(v))
-                .replace(/&/g, "&amp;")
-                .replace(/</g, "&lt;")
-                .replace(/>/g, "&gt;")
-                .replace(/"/g, "&quot;");
+              setTimeout(() => {
+                runningView.style.display = "none";
+                doneView.style.display = "block";
 
-              doneView.innerHTML = \`
-                <div class="success">Sync completed successfully.</div>
+                const safe = (v) => (v == null ? "" : String(v))
+                  .replace(/&/g, "&amp;")
+                  .replace(/</g, "&lt;")
+                  .replace(/>/g, "&gt;")
+                  .replace(/"/g, "&quot;");
 
-                <div class="card">
-                  <div class="kv"><b>Master Copy Name:</b> \${safe(result.masterCopyName)}</div>
-                  <div class="kv"><b>Master Copy ID:</b> \${safe(result.masterCopyId)}</div>
-                  <div class="kv"><b>Rows Updated:</b> \${safe(result.rowsUpdated)}</div>
-                  <div class="kv"><b>Rows Inserted:</b> \${safe(result.rowsInserted)}</div>
-                  <div class="kv"><b>Rows Hidden:</b> \${safe(result.rowsHidden)}</div>
-                </div>
+                doneView.innerHTML = \`
+                  <div class="success">Sync completed successfully.</div>
 
-                <div class="btnRow">
-                  <a class="btn" href="\${safe(result.masterCopyUrl)}" target="_blank">Open New Master Copy</a>
-                  <button class="btnSecondary" onclick="google.script.host.close()">Close</button>
-                </div>
-              \`;
+                  <div class="card">
+                    <div class="kv"><b>Master Copy Name:</b> \${safe(result.masterCopyName)}</div>
+                    <div class="kv"><b>Master Copy ID:</b> \${safe(result.masterCopyId)}</div>
+                    <div class="kv"><b>Rows Updated:</b> \${safe(result.rowsUpdated)}</div>
+                    <div class="kv"><b>Rows Inserted:</b> \${safe(result.rowsInserted)}</div>
+                    <div class="kv"><b>Rows Hidden:</b> \${safe(result.rowsHidden)}</div>
+                  </div>
+
+                  <div class="btnRow">
+                    <a class="btn" href="\${safe(result.masterCopyUrl)}" target="_blank">Open New Master Copy</a>
+                    <button class="btnSecondary" onclick="google.script.host.close()">Close</button>
+                  </div>
+                \`;
+              }, 350);
             })
             .withFailureHandler((err) => {
               clearInterval(timer);
@@ -271,7 +281,7 @@ function launchSyncBoqLayerToMasterUi() {
               doneView.innerHTML = \`
                 <div class="error">Sync failed.</div>
                 <div class="card">
-                  <div class="error">\${msg.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>
+                  <div class="error">\${String(msg).replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>
                 </div>
                 <div class="btnRow">
                   <button class="btnSecondary" onclick="google.script.host.close()">Close</button>
@@ -435,7 +445,10 @@ function syncBoqLayerToMasterCore_() {
       let r = 1;
       while (r <= scopeVals.length) {
         const scopeText = String((scopeVals[r - 1] && scopeVals[r - 1][0]) || "").trim();
-        if (!scopeText) { r++; continue; }
+        if (!scopeText) {
+          r++;
+          continue;
+        }
 
         const cell = sh.getRange(r, matchCol);
 
@@ -447,13 +460,19 @@ function syncBoqLayerToMasterCore_() {
           if (mergedRange) {
             const isTopLeft =
               mergedRange.getRow() === r && mergedRange.getColumn() === matchCol;
-            if (!isTopLeft) { r++; continue; }
+            if (!isTopLeft) {
+              r++;
+              continue;
+            }
           }
         }
 
         const rowKey = normKey_advanced_(scopeText);
         const mapList = mappingByTarget.get(rowKey);
-        if (!mapList || !mapList.length) { r++; continue; }
+        if (!mapList || !mapList.length) {
+          r++;
+          continue;
+        }
 
         report.targetsMatched++;
         targetsFoundSomewhere.add(rowKey);
@@ -505,7 +524,10 @@ function syncBoqLayerToMasterCore_() {
           }
         }
 
-        if (!zoneOrder.length) { r++; continue; }
+        if (!zoneOrder.length) {
+          r++;
+          continue;
+        }
 
         const finalZones = [];
         for (const z of zoneOrder) {
@@ -522,7 +544,10 @@ function syncBoqLayerToMasterCore_() {
           finalZones.push(z);
         }
 
-        if (!finalZones.length) { r++; continue; }
+        if (!finalZones.length) {
+          r++;
+          continue;
+        }
 
         const needed = finalZones.length;
 
@@ -884,9 +909,15 @@ function hideZeroRowsInTab_(sh, matchCol, measurementCol, qtyCol) {
 
     if (!measurementCol) {
       if (qtyZero) {
-        if (!sh.isRowHiddenByUser(r)) { sh.hideRows(r); hidden++; }
+        if (!sh.isRowHiddenByUser(r)) {
+          sh.hideRows(r);
+          hidden++;
+        }
       } else {
-        if (sh.isRowHiddenByUser(r)) { sh.showRows(r); unhidden++; }
+        if (sh.isRowHiddenByUser(r)) {
+          sh.showRows(r);
+          unhidden++;
+        }
       }
       continue;
     }
@@ -895,9 +926,15 @@ function hideZeroRowsInTab_(sh, matchCol, measurementCol, qtyCol) {
     const measZero = !Number.isFinite(meas) || meas === 0;
 
     if (qtyZero && measZero) {
-      if (!sh.isRowHiddenByUser(r)) { sh.hideRows(r); hidden++; }
+      if (!sh.isRowHiddenByUser(r)) {
+        sh.hideRows(r);
+        hidden++;
+      }
     } else {
-      if (sh.isRowHiddenByUser(r)) { sh.showRows(r); unhidden++; }
+      if (sh.isRowHiddenByUser(r)) {
+        sh.showRows(r);
+        unhidden++;
+      }
     }
   }
 
