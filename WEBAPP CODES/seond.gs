@@ -1,7 +1,7 @@
 /**************************************************
  * LAYER → MASTER (Zones vertical + per-zone Area)
  * - Source: Auto-QA Output sheet, tab "LAYER"
- * - Target: MASTER sheet tab "CALCULATION SHEET"
+ * - Target: MASTER sheet tab "SITE RECEE CALCULATION"
  *
  * Behavior:
  * - Column A (S. No) merged vertically to match zones count
@@ -10,6 +10,8 @@
  * - Column D lists EACH zone’s area (NOT summed)
  * - Auto EXPANDS or SHRINKS rows to fit zones count (adaptable)
  * - Exact decimals + display format 0.############
+ * - Hides row if LENGTH (Ft) is blank or 0
+ * - Does NOT touch row 1
  **************************************************/
 
 const LAYER_TO_MASTER = {
@@ -21,16 +23,17 @@ const LAYER_TO_MASTER = {
   SRC_HDR_AREA: "area (ft2)",
 
   // ---- TARGET (MASTER) ----
-  TGT_TAB: "CALCULATION SHEET",
+  TGT_TAB: "SITE RECEE CALCULATION",
 
   // Target columns
-  TGT_SNO_COL: 1,   // A
-  TGT_ITEM_COL: 2,  // B
-  TGT_ZONES_COL: 3, // C
-  TGT_AREA_COL: 4,  // D
+  TGT_SNO_COL: 1,     // A
+  TGT_ITEM_COL: 2,    // B
+  TGT_ZONES_COL: 3,   // C
+  TGT_AREA_COL: 4,    // D
+  TGT_LENGTH_COL: 4,  // D = LENGTH (Ft) in your sheet
 
   // Scan limits
-  TGT_SCAN_START_ROW: 1,
+  TGT_SCAN_START_ROW: 2,   // don't touch row 1
   TGT_SCAN_END_ROW: 1200,
 
   // Rules
@@ -52,7 +55,7 @@ function syncLayerToMasterZonesArea() {
   const lookup = buildLayerAggMap_(srcSh); // key -> { zoneArea: Map(zone -> area) }
 
   const lastRow = Math.min(LAYER_TO_MASTER.TGT_SCAN_END_ROW, tgtSh.getLastRow());
-  const startRow = Math.max(1, LAYER_TO_MASTER.TGT_SCAN_START_ROW);
+  const startRow = Math.max(2, LAYER_TO_MASTER.TGT_SCAN_START_ROW);
   if (lastRow < startRow) return;
 
   const items = tgtSh
@@ -77,7 +80,7 @@ function syncLayerToMasterZonesArea() {
     const agg = lookup.get(key);
     if (!agg || !agg.zoneArea) continue;
 
-    const zones = Array.from(agg.zoneArea.keys());        // Auto-QA order
+    const zones = Array.from(agg.zoneArea.keys());
     const areas = zones.map(z => agg.zoneArea.get(z) || 0);
 
     const block = getItemBlockRange_(tgtSh, r, LAYER_TO_MASTER.TGT_ITEM_COL);
@@ -86,7 +89,6 @@ function syncLayerToMasterZonesArea() {
 
     // ---------- ADAPT HEIGHT: expand or shrink ----------
     if (desiredRows > currentRows) {
-      // EXPAND
       const add = desiredRows - currentRows;
 
       insertRowsWithFormat_(
@@ -96,30 +98,29 @@ function syncLayerToMasterZonesArea() {
         LAYER_TO_MASTER.COPY_FORMAT_COLS
       );
 
-      // Re-merge A & B to new height
       remakeMerge_(tgtSh, block.startRow, LAYER_TO_MASTER.TGT_SNO_COL, currentRows, desiredRows);
       remakeMerge_(tgtSh, block.startRow, LAYER_TO_MASTER.TGT_ITEM_COL, currentRows, desiredRows);
 
     } else if (desiredRows < currentRows) {
-      // SHRINK (remove extra rows so purple block fits exactly)
-      // 1) Break merges in A & B (old height)
       breakMergeIfAny_(tgtSh, block.startRow, LAYER_TO_MASTER.TGT_SNO_COL);
       breakMergeIfAny_(tgtSh, block.startRow, LAYER_TO_MASTER.TGT_ITEM_COL);
 
-      // 2) Delete extra rows below desired block (this shifts everything up)
       const deleteFrom = block.startRow + desiredRows;
       const deleteCount = currentRows - desiredRows;
       tgtSh.deleteRows(deleteFrom, deleteCount);
 
-      // 3) Re-merge A & B to desired height
-      tgtSh.getRange(block.startRow, LAYER_TO_MASTER.TGT_SNO_COL, desiredRows, 1)
-        .merge()
-        .setVerticalAlignment("middle");
-      tgtSh.getRange(block.startRow, LAYER_TO_MASTER.TGT_ITEM_COL, desiredRows, 1)
-        .merge()
-        .setVerticalAlignment("middle");
+      if (desiredRows > 1) {
+        tgtSh.getRange(block.startRow, LAYER_TO_MASTER.TGT_SNO_COL, desiredRows, 1)
+          .merge()
+          .setVerticalAlignment("middle");
+        tgtSh.getRange(block.startRow, LAYER_TO_MASTER.TGT_ITEM_COL, desiredRows, 1)
+          .merge()
+          .setVerticalAlignment("middle");
+      } else {
+        tgtSh.getRange(block.startRow, LAYER_TO_MASTER.TGT_SNO_COL).setVerticalAlignment("middle");
+        tgtSh.getRange(block.startRow, LAYER_TO_MASTER.TGT_ITEM_COL).setVerticalAlignment("middle");
+      }
     } else {
-      // same height — just ensure A is merged like B and vertically centered
       const snoCell = tgtSh.getRange(block.startRow, LAYER_TO_MASTER.TGT_SNO_COL);
       if (!snoCell.isPartOfMerge() && desiredRows > 1) {
         tgtSh.getRange(block.startRow, LAYER_TO_MASTER.TGT_SNO_COL, desiredRows, 1)
@@ -128,10 +129,12 @@ function syncLayerToMasterZonesArea() {
       } else if (snoCell.isPartOfMerge()) {
         snoCell.getMergedRanges()[0].setVerticalAlignment("middle");
       }
-      itemCell.getMergedRanges?.()[0]?.setVerticalAlignment?.("middle");
+
+      if (itemCell.isPartOfMerge()) {
+        itemCell.getMergedRanges()[0].setVerticalAlignment("middle");
+      }
     }
 
-    // After expand/shrink, the block height is desiredRows
     const writeRows = desiredRows;
 
     // ---------- Write zones ----------
@@ -139,15 +142,17 @@ function syncLayerToMasterZonesArea() {
     for (let z = 0; z < writeRows; z++) zoneWrite.push([zones[z] || ""]);
     tgtSh.getRange(block.startRow, LAYER_TO_MASTER.TGT_ZONES_COL, writeRows, 1).setValues(zoneWrite);
 
-    // ---------- Write per-zone areas (exact) ----------
+    // ---------- Write per-zone areas ----------
     const areaWrite = [];
     for (let z = 0; z < writeRows; z++) areaWrite.push([areas[z] ?? ""]);
     const areaRange = tgtSh.getRange(block.startRow, LAYER_TO_MASTER.TGT_AREA_COL, writeRows, 1);
     areaRange.setValues(areaWrite);
-    areaRange.setNumberFormat("0.############"); // show full decimals (no display rounding)
+    areaRange.setNumberFormat("0.############");
 
     updated++;
   }
+
+  hideRowsWithBlankOrZeroLength_();
 
   SpreadsheetApp.getActive().toast(
     `Updated ${updated} BOQ item(s).`,
@@ -167,12 +172,12 @@ function buildLayerAggMap_(srcSh) {
   const header = values[0].map(v => String(v || "").trim().toLowerCase());
 
   const idxLayer = header.indexOf(LAYER_TO_MASTER.SRC_HDR_LAYER.toLowerCase());
-  const idxZone  = header.indexOf(LAYER_TO_MASTER.SRC_HDR_ZONE.toLowerCase());
-  const idxArea  = header.indexOf(LAYER_TO_MASTER.SRC_HDR_AREA.toLowerCase());
+  const idxZone = header.indexOf(LAYER_TO_MASTER.SRC_HDR_ZONE.toLowerCase());
+  const idxArea = header.indexOf(LAYER_TO_MASTER.SRC_HDR_AREA.toLowerCase());
 
   if (idxLayer === -1) throw new Error(`Missing header in LAYER: ${LAYER_TO_MASTER.SRC_HDR_LAYER}`);
-  if (idxZone  === -1) throw new Error(`Missing header in LAYER: ${LAYER_TO_MASTER.SRC_HDR_ZONE}`);
-  if (idxArea  === -1) throw new Error(`Missing header in LAYER: ${LAYER_TO_MASTER.SRC_HDR_AREA}`);
+  if (idxZone === -1) throw new Error(`Missing header in LAYER: ${LAYER_TO_MASTER.SRC_HDR_ZONE}`);
+  if (idxArea === -1) throw new Error(`Missing header in LAYER: ${LAYER_TO_MASTER.SRC_HDR_AREA}`);
 
   const map = new Map();
   let currentLayer = "";
@@ -202,6 +207,45 @@ function buildLayerAggMap_(srcSh) {
   return map;
 }
 
+/* ---------- Hide rows where LENGTH (Ft) is blank or 0 ---------- */
+
+function hideRowsWithBlankOrZeroLength_() {
+  const masterSS = SpreadsheetApp.getActiveSpreadsheet();
+  const tgtSh = masterSS.getSheetByName(LAYER_TO_MASTER.TGT_TAB);
+  if (!tgtSh) throw new Error(`Target tab not found in MASTER: ${LAYER_TO_MASTER.TGT_TAB}`);
+
+  const startRow = Math.max(2, LAYER_TO_MASTER.TGT_SCAN_START_ROW);
+  const lastRow = Math.min(LAYER_TO_MASTER.TGT_SCAN_END_ROW, tgtSh.getLastRow());
+  if (lastRow < startRow) return;
+
+  const itemVals = tgtSh
+    .getRange(startRow, LAYER_TO_MASTER.TGT_ITEM_COL, lastRow - startRow + 1, 1)
+    .getDisplayValues();
+
+  const lenVals = tgtSh
+    .getRange(startRow, LAYER_TO_MASTER.TGT_LENGTH_COL, lastRow - startRow + 1, 1)
+    .getDisplayValues();
+
+  for (let i = 0; i < itemVals.length; i++) {
+    const rowNum = startRow + i;
+    if (rowNum === 1) continue;
+
+    const itemText = String(itemVals[i][0] || "").trim();
+    const lenText = String(lenVals[i][0] || "").trim();
+    const lenNum = toNumber_(lenText);
+
+    if (!itemText) continue;
+
+    if (/^\(.*\)$/.test(itemText)) continue;
+
+    if (lenText === "" || lenNum === 0 || lenNum == null) {
+      tgtSh.hideRows(rowNum);
+    } else {
+      tgtSh.showRows(rowNum);
+    }
+  }
+}
+
 /* ---------- Target helpers ---------- */
 
 function getItemBlockRange_(sheet, row, col) {
@@ -225,11 +269,15 @@ function breakMergeIfAny_(sheet, row, col) {
   if (cell.isPartOfMerge()) cell.getMergedRanges()[0].breakApart();
 }
 
-// Rebuild merge from old height to new height (keeps vertical align)
 function remakeMerge_(sheet, startRow, col, oldRows, newRows) {
   const oldRange = sheet.getRange(startRow, col, oldRows, 1);
   if (oldRange.isPartOfMerge()) oldRange.getMergedRanges()[0].breakApart();
-  sheet.getRange(startRow, col, newRows, 1).merge().setVerticalAlignment("middle");
+
+  if (newRows > 1) {
+    sheet.getRange(startRow, col, newRows, 1).merge().setVerticalAlignment("middle");
+  } else {
+    sheet.getRange(startRow, col).setVerticalAlignment("middle");
+  }
 }
 
 /* ---------- Utils ---------- */
@@ -247,6 +295,6 @@ function normKey_(s) {
 
 function toNumber_(v) {
   if (v == null || v === "") return null;
-  const n = Number(v);
+  const n = Number(String(v).replace(/,/g, "").trim());
   return Number.isFinite(n) ? n : null;
 }

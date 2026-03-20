@@ -1,57 +1,83 @@
 /**************************************************
- * DOORS / OPENINGS → MASTER (Nos + Length from Export via Mapping)
+ * DOORS / OPENINGS → MASTER (Nos + Length + Zones vertical)
  *
- * ✅ Master sheet: "CALCULATION SHEET"
- *    Uses the table that starts with header "DOORS OR OPENINGS"
- *    Fills:
- *      - "Nos" column (COUNT)
- *      - "LENGTH (Ft)" column (if Export length differs / master is blank)
+ * MASTER: "CALCULATION SHEET" (Doors table)
+ * MAPPING: Auto-QA Output Template, tab "BOQ-LAYER"
+ * GENERATED: Auto-QA Output, tab "vis_export_sheet_like"
  *
- * ✅ Mapping sheet (Auto-QA Output Template): tab "BOQ-LAYER"
- *    Matches Master item name (Targeted BOQ Name) → picks:
- *      - Generated Layer Name (optional)
- *      - Generated-Block Block Name (used as primary search key)
- *      - Measurement (Count / Length)
- *
- * ✅ Generated sheet (Auto-QA Output): tab "vis_export_sheet_like"
- *    Searches by:
- *      1) Product  (usually block / product name)
- *      2) BOQ name (fallback)
- *    Aggregates:
- *      - qty_value SUM (for Count)
- *      - length (ft) representative (mode, else first non-zero)
- *
- * ------------------------------------------------
- * SET THESE 3 CONSTANTS BEFORE RUNNING
+ * Behavior:
+ * ✅ Expands/Shrinks rows per item based on number of VALID zones found
+ * ✅ Merges Column A (S. No) vertically to match valid zones count
+ * ✅ Merges Column B (DOORS OR OPENINGS) vertically to match valid zones count
+ * ✅ Writes Zones vertically into target zone column
+ * ✅ Writes Nos per zone row
+ * ✅ Writes Length(ft) per zone row
+ * ✅ SKIPS / REMOVES rows where Nos is blank or 0 BEFORE merge/write
  **************************************************/
-const DOORS_SYNC = {
-  // MASTER (script is hosted in MASTER spreadsheet)
-  MASTER_TAB: "CALCULATION SHEET",
 
-  // MAPPING (Auto-QA Output Template)
-  MAP_SS_ID: "1wat9koeZC9puQOvH9gC9zxrkJvZxIn5in7EiwlHleus", // <-- e.g. 1wat9koeZC9puQOvH9c9zrxlvZxln5in7EiwlHleus
+const DOORS_SYNC = {
+  // ---- MASTER (script hosted here) ----
+  MASTER_TAB: "DOOR & WINDOW CALCULATION",
+  MASTER_TABLE_HEADER_TEXT: "doors or openings",
+
+  // ✅ PUT YOUR GREEN COLUMN NUMBER HERE (A=1, B=2 ... I=9, J=10)
+  TGT_ZONE_COL: 3,
+
+  // ---- MAPPING (Auto-QA Output Template) ----
+  MAP_SS_ID: "1wat9koeZC9puQOvH9gC9zxrkJvZxIn5in7EiwlHleus",
   MAP_TAB: "BOQ-LAYER",
 
-  // GENERATED (Auto-QA Output)
+  // ---- GENERATED (Auto-QA Output) ----
   GEN_SS_ID: "12AsC0b7_U4dxhfxEZwtrwOXXALAnEEkQm5N8tg_RByM",
   GEN_TAB: "vis_export_sheet_like",
 
-  // Master table header text to locate the doors table
-  MASTER_TABLE_HEADER_TEXT: "doors or openings",
+  // Formatting copy width when inserting rows
+  COPY_FORMAT_COLS: 20,
 
-  // How far down to scan for the table in master
-  MASTER_SCAN_ROWS: 2000,
-  MASTER_SCAN_COLS: 20,
+  // Stop after N blank items in master doors list
+  STOP_BLANK_RUN: 8,
 };
 
 // function onOpen() {
 //   SpreadsheetApp.getUi()
 //     .createMenu("Vizdom Sync")
-//     .addItem("Sync DOORS/OPENINGS → MASTER (Nos + Length)", "syncDoorsOpeningsToMaster")
+//     .addItem("Sync DOORS/OPENINGS → MASTER (Nos + Length + Zones)", "syncDoorsOpeningsToMasterWithZones")
 //     .addToUi();
 // }
 
-function syncDoorsOpeningsToMaster() {
+function hideDoorRowsWithBlankOrZeroNos_() {
+  const masterSS = SpreadsheetApp.getActiveSpreadsheet();
+  const masterSh = masterSS.getSheetByName(DOORS_SYNC.MASTER_TAB);
+  if (!masterSh) throw new Error(`MASTER tab not found: ${DOORS_SYNC.MASTER_TAB}`);
+
+  const info = findDoorsTable_(masterSh);
+  const { headerRow, colItem, colNos } = info;
+
+  const lastRow = masterSh.getLastRow();
+  if (lastRow <= headerRow) return;
+
+  const itemVals = masterSh.getRange(headerRow + 1, colItem, lastRow - headerRow, 1).getDisplayValues();
+  const nosVals = masterSh.getRange(headerRow + 1, colNos, lastRow - headerRow, 1).getDisplayValues();
+
+  for (let i = 0; i < itemVals.length; i++) {
+    const rowNum = headerRow + 1 + i;
+
+    const itemText = String(itemVals[i][0] || "").trim();
+    const nosText = String(nosVals[i][0] || "").trim();
+    const nosNum = toNumber_(nosText);
+
+    // don't hide completely blank rows or bracket sublabels
+    if (!itemText) continue;
+    if (/^\(.*\)$/.test(itemText)) continue;
+
+    if (nosText === "" || nosNum === 0) {
+      masterSh.hideRows(rowNum);
+    } else {
+      masterSh.showRows(rowNum);
+    }
+  }
+}
+function syncDoorsOpeningsToMasterWithZones() {
   const masterSS = SpreadsheetApp.getActiveSpreadsheet();
   const masterSh = masterSS.getSheetByName(DOORS_SYNC.MASTER_TAB);
   if (!masterSh) throw new Error(`MASTER tab not found: ${DOORS_SYNC.MASTER_TAB}`);
@@ -64,112 +90,207 @@ function syncDoorsOpeningsToMaster() {
   const genSh = genSS.getSheetByName(DOORS_SYNC.GEN_TAB);
   if (!genSh) throw new Error(`Generated tab not found: ${DOORS_SYNC.GEN_TAB}`);
 
-  // 1) Build mapping: Targeted BOQ Name -> { blockName, genLayerName, measurement }
+  // 1) Build mapping lookup: master item -> {blockName, generatedLayerName, measurementTokens}
   const mapping = buildDoorMapping_(mapSh);
 
-  // 2) Build generated aggregates: by Product and by BOQ name
-  const genAgg = buildGeneratedAgg_(genSh);
+  // 2) Build generated lookup: key -> {zones[], qtyArr[], lenArr[]}
+  const genAgg = buildGeneratedAggWithZones_(genSh);
 
-  // 3) Locate doors table in master + get rows
+  // 3) Find doors table columns in master
   const masterInfo = findDoorsTable_(masterSh);
-  const { headerRow, colItem, colNos, colLen } = masterInfo;
+  const { headerRow, colSno, colItem, colNos, colLen } = masterInfo;
 
-  const rows = readDoorItems_(masterSh, headerRow, colItem, DOORS_SYNC.MASTER_SCAN_ROWS);
-  if (!rows.length) {
-    SpreadsheetApp.getActive().toast("No DOORS/OPENINGS items found under table.", "Doors Sync", 6);
-    return;
-  }
+  // 4) Walk down the doors list dynamically
+  let r = headerRow + 1;
+  let blankRun = 0;
+  let updatedItems = 0;
 
-  let updated = 0;
-  let updatedNos = 0;
-  let updatedLen = 0;
+  while (r <= masterSh.getLastRow()) {
+    const itemCell = masterSh.getRange(r, colItem);
+    const rawItem = String(itemCell.getDisplayValue() || "").trim();
 
-  // Batch read current Nos/Len (faster + fewer calls)
-  const itemRange = masterSh.getRange(rows[0].row, colItem, rows.length, 1).getDisplayValues();
-  const nosRange  = masterSh.getRange(rows[0].row, colNos,  rows.length, 1).getValues();
-  const lenRange  = masterSh.getRange(rows[0].row, colLen,  rows.length, 1).getValues();
+    if (!rawItem) {
+      blankRun++;
+      if (blankRun >= DOORS_SYNC.STOP_BLANK_RUN) break;
+      r++;
+      continue;
+    }
+    blankRun = 0;
 
-  const outNos = [];
-  const outLen = [];
-
-  for (let i = 0; i < rows.length; i++) {
-    const r = rows[i].row;
-    const rawName = String(itemRange[i][0] || "").trim();
-    const key = normKey_(rawName);
-
-    let newNos = nosRange[i][0];
-    let newLen = lenRange[i][0];
-
-    const m = mapping.get(key);
-    if (!m) {
-      // no mapping found → keep as is
-      outNos.push([newNos]);
-      outLen.push([newLen]);
+    // Skip sublabels like "(RECEPTION)"
+    if (/^\(.*\)$/.test(rawItem)) {
+      r++;
       continue;
     }
 
-    // Measurement requirement (like: "Count", "Length", "Count Length")
-    const needsCount = m.measurementTokens.has("count");
-    const needsLen   = m.measurementTokens.has("length");
-
-    // Search in generated using prioritized keys:
-    // 1) blockName (strongest)
-    // 2) generatedLayerName (optional)
-    // 3) original master name
-    const keysToTry = [];
-    if (m.blockName) keysToTry.push(m.blockName);
-    if (m.generatedLayerName) keysToTry.push(m.generatedLayerName);
-    keysToTry.push(rawName);
-
-    const hit = findBestGenHit_(genAgg, keysToTry);
-
-    // If we found something in generated sheet, apply per measurement requirement
-    if (hit) {
-      if (needsCount) {
-        const qty = hit.qtySum;
-        if (qty !== null && qty !== "" && qty !== undefined) {
-          if (String(newNos) !== String(qty)) {
-            newNos = qty;
-            updatedNos++;
-            updated++;
-          }
-        }
-      }
-
-      if (needsLen) {
-        const gotLen = hit.lenValue;
-        if (gotLen != null && gotLen !== "" && Number(gotLen) > 0) {
-          const masterLenNum = toNumber_(newLen);
-          const gotLenNum = toNumber_(gotLen);
-
-          // Update if master length is blank/0 OR differs (tolerance 0.01 ft)
-          const shouldUpdate =
-            masterLenNum == null ||
-            masterLenNum === 0 ||
-            Math.abs(masterLenNum - gotLenNum) > 0.01;
-
-          if (shouldUpdate) {
-            newLen = gotLenNum;
-            updatedLen++;
-            updated++;
-          }
-        }
+    // Only process top-left of merged item block
+    if (itemCell.isPartOfMerge()) {
+      const merged = itemCell.getMergedRanges()[0];
+      if (!(merged.getRow() === r && merged.getColumn() === colItem)) {
+        r++;
+        continue;
       }
     }
 
-    outNos.push([newNos]);
-    outLen.push([newLen]);
-  }
+    const key = normKey_(rawItem);
+    const mapRow = mapping.get(key);
+    if (!mapRow) {
+      const blk = getItemBlockRange_(masterSh, r, colItem);
+      r = blk.startRow + blk.numRows;
+      continue;
+    }
 
-  // Write back in 2 setValues calls
-  masterSh.getRange(rows[0].row, colNos, rows.length, 1).setValues(outNos);
-  masterSh.getRange(rows[0].row, colLen, rows.length, 1).setValues(outLen);
+    const needsCount = mapRow.measurementTokens.has("count");
+    const needsLen = mapRow.measurementTokens.has("length");
+
+    // Choose search keys (priority)
+    const keysToTry = [];
+    if (mapRow.blockName) keysToTry.push(mapRow.blockName);
+    if (mapRow.generatedLayerName) keysToTry.push(mapRow.generatedLayerName);
+    keysToTry.push(rawItem);
+
+    const hit = findBestGenHit_(genAgg, keysToTry);
+    if (!hit) {
+      const blk = getItemBlockRange_(masterSh, r, colItem);
+      r = blk.startRow + blk.numRows;
+      continue;
+    }
+
+    // -----------------------------
+    // FILTER VALID ROWS FIRST
+    // keep only rows where Nos > 0
+    // -----------------------------
+    const filteredRows = [];
+    const rawZones = hit.zones || [];
+    const rawQtyArr = hit.qtyArr || [];
+    const rawLenArr = hit.lenArr || [];
+
+    for (let z = 0; z < rawZones.length; z++) {
+      const zone = String(rawZones[z] || "").trim() || "misc";
+      const qty = toNumber_(rawQtyArr[z]) ?? 0;
+      const len = toNumber_(rawLenArr[z]);
+
+      if (qty > 0) {
+        filteredRows.push({
+          zone: zone,
+          qty: qty,
+          len: len
+        });
+      }
+    }
+
+    // If nothing valid remains, make the block 1 row and clear outputs
+    const block = getItemBlockRange_(masterSh, r, colItem);
+    const currentRows = block.numRows;
+
+    if (filteredRows.length === 0) {
+      // shrink to 1 row if needed
+      if (currentRows > 1) {
+        breakMergeIfAny_(masterSh, block.startRow, colSno);
+        breakMergeIfAny_(masterSh, block.startRow, colItem);
+
+        masterSh.deleteRows(block.startRow + 1, currentRows - 1);
+
+        // keep top row unmerged
+        masterSh.getRange(block.startRow, colSno).setVerticalAlignment("middle");
+        masterSh.getRange(block.startRow, colItem).setVerticalAlignment("middle");
+      }
+
+      // clear target values on the remaining row
+      masterSh.getRange(block.startRow, DOORS_SYNC.TGT_ZONE_COL).clearContent();
+      if (colNos) masterSh.getRange(block.startRow, colNos).clearContent();
+      if (colLen) masterSh.getRange(block.startRow, colLen).clearContent();
+
+      updatedItems++;
+      r = block.startRow + 1;
+      continue;
+    }
+
+    const desiredRows = filteredRows.length;
+
+    // ---------- ADAPT HEIGHT (expand / shrink) ----------
+    if (desiredRows > currentRows) {
+      const add = desiredRows - currentRows;
+
+      insertRowsWithFormat_(
+        masterSh,
+        block.startRow + currentRows - 1,
+        add,
+        DOORS_SYNC.COPY_FORMAT_COLS
+      );
+
+      remakeMerge_(masterSh, block.startRow, colSno, currentRows, desiredRows);
+      remakeMerge_(masterSh, block.startRow, colItem, currentRows, desiredRows);
+
+    } else if (desiredRows < currentRows) {
+      breakMergeIfAny_(masterSh, block.startRow, colSno);
+      breakMergeIfAny_(masterSh, block.startRow, colItem);
+
+      const deleteFrom = block.startRow + desiredRows;
+      const deleteCount = currentRows - desiredRows;
+      masterSh.deleteRows(deleteFrom, deleteCount);
+
+      if (desiredRows > 1) {
+        masterSh.getRange(block.startRow, colSno, desiredRows, 1)
+          .merge()
+          .setVerticalAlignment("middle");
+        masterSh.getRange(block.startRow, colItem, desiredRows, 1)
+          .merge()
+          .setVerticalAlignment("middle");
+      } else {
+        masterSh.getRange(block.startRow, colSno).setVerticalAlignment("middle");
+        masterSh.getRange(block.startRow, colItem).setVerticalAlignment("middle");
+      }
+    } else {
+      // ensure merge/alignment is correct
+      if (desiredRows > 1) {
+        ensureMergedExactly_(masterSh, block.startRow, colSno, desiredRows);
+        ensureMergedExactly_(masterSh, block.startRow, colItem, desiredRows);
+      } else {
+        breakMergeIfAny_(masterSh, block.startRow, colSno);
+        breakMergeIfAny_(masterSh, block.startRow, colItem);
+        masterSh.getRange(block.startRow, colSno).setVerticalAlignment("middle");
+        masterSh.getRange(block.startRow, colItem).setVerticalAlignment("middle");
+      }
+    }
+
+    // ---------- Write values ----------
+    const zoneWrite = [];
+    const nosWrite = [];
+    const lenWrite = [];
+
+    for (let i = 0; i < filteredRows.length; i++) {
+      zoneWrite.push([filteredRows[i].zone]);
+      nosWrite.push([filteredRows[i].qty]);
+      lenWrite.push([filteredRows[i].len != null ? filteredRows[i].len : ""]);
+    }
+
+    masterSh.getRange(block.startRow, DOORS_SYNC.TGT_ZONE_COL, desiredRows, 1).setValues(zoneWrite);
+
+    if (needsCount) {
+      masterSh.getRange(block.startRow, colNos, desiredRows, 1).setValues(nosWrite);
+    } else {
+      masterSh.getRange(block.startRow, colNos, desiredRows, 1).clearContent();
+    }
+
+    if (needsLen) {
+      masterSh.getRange(block.startRow, colLen, desiredRows, 1).setValues(lenWrite);
+    } else {
+      masterSh.getRange(block.startRow, colLen, desiredRows, 1).clearContent();
+    }
+
+    updatedItems++;
+    r = block.startRow + desiredRows;
+  }
+  hideDoorRowsWithBlankOrZeroNos_();
 
   SpreadsheetApp.getActive().toast(
-    `Done. Updated rows: ${updated} (Nos: ${updatedNos}, Length: ${updatedLen})`,
-    "Doors Sync",
+    `Doors Sync complete. Updated ${updatedItems} item(s).`,
+    "DOORS → MASTER",
     8
   );
+
+
 }
 
 /* =========================
@@ -177,75 +298,42 @@ function syncDoorsOpeningsToMaster() {
    ========================= */
 
 function findDoorsTable_(sh) {
-  const lastRow = Math.min(DOORS_SYNC.MASTER_SCAN_ROWS, sh.getLastRow());
-  const lastCol = Math.min(DOORS_SYNC.MASTER_SCAN_COLS, sh.getLastColumn());
-  if (lastRow < 1 || lastCol < 1) throw new Error("MASTER sheet looks empty.");
+  const lastRow = sh.getLastRow();
+  const lastCol = Math.min(30, sh.getLastColumn());
+  if (lastRow < 1) throw new Error("MASTER sheet looks empty.");
 
-  const scan = sh.getRange(1, 1, lastRow, lastCol).getDisplayValues();
+  const scanRows = Math.min(lastRow, 2000);
+  const scan = sh.getRange(1, 1, scanRows, lastCol).getDisplayValues();
+
+  let headerRow = -1;
   const target = DOORS_SYNC.MASTER_TABLE_HEADER_TEXT;
 
-  // Find header row containing "DOORS OR OPENINGS"
-  let headerRow = -1;
   for (let r = 0; r < scan.length; r++) {
     const row = scan[r].map(v => String(v || "").trim().toLowerCase());
-    if (row.some(v => v === target)) {
+    if (row.includes(target)) {
       headerRow = r + 1;
       break;
     }
   }
-  if (headerRow === -1) throw new Error(`Could not find "${target}" in MASTER tab.`);
+  if (headerRow === -1) throw new Error(`Could not find "${target}" in MASTER.`);
 
-  // The header row is the row that also has columns like: S. No | DOORS OR OPENINGS | Nos | LENGTH (Ft)
   const header = sh.getRange(headerRow, 1, 1, lastCol).getDisplayValues()[0]
     .map(v => String(v || "").trim().toLowerCase());
 
+  const colSno = header.findIndex(v => v.replace(/\./g, "") === "s no" || v === "s. no") + 1;
   const colItem = header.findIndex(v => v === "doors or openings") + 1;
-  const colNos  = header.findIndex(v => v === "nos") + 1;
-  const colLen  = header.findIndex(v => v.includes("length")) + 1;
+  const colNos = header.findIndex(v => v === "nos") + 1;
+  const colLen = header.findIndex(v => v.includes("length")) + 1;
 
-  if (!colItem || !colNos || !colLen) {
-    throw new Error(
-      `MASTER doors table columns not detected properly. Need headers: "DOORS OR OPENINGS", "Nos", "LENGTH (Ft)".`
-    );
+  if (!colSno || !colItem || !colNos || !colLen) {
+    throw new Error(`MASTER doors headers not detected. Need: S. No, DOORS OR OPENINGS, Nos, LENGTH (Ft)`);
   }
 
-  return { headerRow, colItem, colNos, colLen };
-}
-
-function readDoorItems_(sh, headerRow, colItem, maxScanRows) {
-  // Read below header until we hit a long blank run
-  const startRow = headerRow + 1;
-  const lastRow = Math.min(maxScanRows, sh.getLastRow());
-  if (lastRow < startRow) return [];
-
-  const vals = sh.getRange(startRow, colItem, lastRow - startRow + 1, 1).getDisplayValues();
-
-  const rows = [];
-  let blankRun = 0;
-
-  for (let i = 0; i < vals.length; i++) {
-    const name = String(vals[i][0] || "").trim();
-    const r = startRow + i;
-
-    if (!name) {
-      blankRun++;
-      if (blankRun >= 8) break; // stop after 8 consecutive blanks
-      continue;
-    }
-
-    blankRun = 0;
-
-    // Skip sublabels like "(RECEPTION)" etc — you can remove this if you want them included
-    if (/^\(.*\)$/.test(name)) continue;
-
-    rows.push({ row: r });
-  }
-
-  return rows;
+  return { headerRow, colSno, colItem, colNos, colLen };
 }
 
 /* =========================
-   MAPPING: BOQ-LAYER tab
+   MAPPING: BOQ-LAYER
    ========================= */
 
 function buildDoorMapping_(mapSh) {
@@ -253,11 +341,10 @@ function buildDoorMapping_(mapSh) {
   const lastCol = mapSh.getLastColumn();
   if (lastRow < 2) return new Map();
 
-  // ✅ Find the real header row (because your sheet has multi-row headers)
   const headerScanRows = Math.min(10, lastRow);
   const scan = mapSh.getRange(1, 1, headerScanRows, lastCol).getDisplayValues();
 
-  let headerRowIdx = -1; // 0-based
+  let headerRowIdx = -1;
   for (let r = 0; r < scan.length; r++) {
     const row = scan[r].map(v => String(v || "").trim().toLowerCase());
     if (row.includes("boq name") && row.includes("measurement")) {
@@ -265,32 +352,30 @@ function buildDoorMapping_(mapSh) {
       break;
     }
   }
-  if (headerRowIdx === -1) {
-    throw new Error(`Mapping: couldn't find header row containing "BOQ Name" + "Measurement" in ${DOORS_SYNC.MAP_TAB}`);
-  }
+  if (headerRowIdx === -1) throw new Error(`Mapping: couldn't find header row containing "BOQ Name" + "Measurement"`);
 
   const hdr = scan[headerRowIdx].map(v => String(v || "").trim().toLowerCase());
 
-  // Columns
-  const idxTarget = hdr.indexOf("boq name");        // Targeted BOQ Name
-  const idxMeas   = hdr.indexOf("measurement");    // Measurement
+  const idxTarget = hdr.indexOf("boq name");
+  const idxMeas = hdr.indexOf("measurement");
 
-  // There are 2 "Layer Name" columns; we want the one under "Generated"
   const layerNameIdxs = [];
-  for (let i = 0; i < hdr.length; i++) if (hdr[i] === "layer name") layerNameIdxs.push(i);
+  for (let i = 0; i < hdr.length; i++) {
+    if (hdr[i] === "layer name") layerNameIdxs.push(i);
+  }
   const idxGeneratedLayer = layerNameIdxs.length >= 2 ? layerNameIdxs[1] : -1;
 
-  // "Block Name" under "Generated-Block"
   const idxBlock = hdr.indexOf("block name");
 
-  if (idxTarget === -1) throw new Error(`Mapping: missing "BOQ Name" header in ${DOORS_SYNC.MAP_TAB}`);
-  if (idxBlock === -1)  throw new Error(`Mapping: missing "Block Name" header in ${DOORS_SYNC.MAP_TAB}`);
-  if (idxMeas === -1)   throw new Error(`Mapping: missing "Measurement" header in ${DOORS_SYNC.MAP_TAB}`);
+  if (idxTarget === -1) throw new Error(`Mapping: missing "BOQ Name" header`);
+  if (idxBlock === -1) throw new Error(`Mapping: missing "Block Name" header`);
+  if (idxMeas === -1) throw new Error(`Mapping: missing "Measurement" header`);
 
-  // ✅ Data starts AFTER the header row we found
-  const dataStart = headerRowIdx + 2; // convert 0-based to sheet row + next row
-  const values = mapSh.getRange(dataStart, 1, lastRow - (dataStart - 1), lastCol).getDisplayValues();
+  const dataStart = headerRowIdx + 2;
+  const numRows = lastRow - (dataStart - 1);
+  if (numRows <= 0) return new Map();
 
+  const values = mapSh.getRange(dataStart, 1, numRows, lastCol).getDisplayValues();
   const map = new Map();
 
   for (let r = 0; r < values.length; r++) {
@@ -303,11 +388,7 @@ function buildDoorMapping_(mapSh) {
 
     const measRaw = String(values[r][idxMeas] || "").trim();
     const measurementTokens = new Set(
-      measRaw
-        .toLowerCase()
-        .split(/[^a-z]+/g)
-        .map(s => s.trim())
-        .filter(Boolean)
+      measRaw.toLowerCase().split(/[^a-z]+/g).map(s => s.trim()).filter(Boolean)
     );
 
     map.set(normKey_(targeted), {
@@ -325,7 +406,7 @@ function buildDoorMapping_(mapSh) {
    GENERATED: vis_export_sheet_like
    ========================= */
 
-function buildGeneratedAgg_(genSh) {
+function buildGeneratedAggWithZones_(genSh) {
   const lastRow = genSh.getLastRow();
   const lastCol = genSh.getLastColumn();
   if (lastRow < 2) return { byProduct: new Map(), byBoq: new Map() };
@@ -335,48 +416,67 @@ function buildGeneratedAgg_(genSh) {
 
   const idxProduct = hdr.indexOf("product");
   const idxBoq = hdr.indexOf("boq name");
+  const idxZone = hdr.indexOf("zone");
   const idxQty = hdr.indexOf("qty_value");
   const idxLen = hdr.indexOf("length (ft)");
 
-  if (idxProduct === -1) throw new Error(`Generated: missing header "Product" in ${DOORS_SYNC.GEN_TAB}`);
-  if (idxBoq === -1) throw new Error(`Generated: missing header "BOQ name" in ${DOORS_SYNC.GEN_TAB}`);
-  if (idxQty === -1) throw new Error(`Generated: missing header "qty_value" in ${DOORS_SYNC.GEN_TAB}`);
-  if (idxLen === -1) throw new Error(`Generated: missing header "length (ft)" in ${DOORS_SYNC.GEN_TAB}`);
+  if (idxBoq === -1) throw new Error(`Generated: missing "BOQ name" header`);
+  if (idxZone === -1) throw new Error(`Generated: missing "zone" header`);
+  if (idxQty === -1) throw new Error(`Generated: missing "qty_value" header`);
+  if (idxLen === -1) throw new Error(`Generated: missing "length (ft)" header`);
 
-  const byProduct = new Map(); // key -> { qtySum, lenValues[] }
+  let currentBoq = "";
+  let currentProduct = "";
+
   const byBoq = new Map();
+  const byProduct = new Map();
 
-  for (let r = 1; r < values.length; r++) {
-    const product = String(values[r][idxProduct] || "").trim();
-    const boq = String(values[r][idxBoq] || "").trim();
-    const qty = toNumber_(values[r][idxQty]) ?? 0;
-    const len = toNumber_(values[r][idxLen]) ?? 0;
+  function push_(map, key, zone, qty, len) {
+    const k = normKey_(key);
+    if (!k) return;
 
-    if (product) {
-      const k = normKey_(product);
-      const agg = byProduct.get(k) || { qtySum: 0, lenValues: [] };
-      agg.qtySum += qty;
-      if (len > 0) agg.lenValues.push(len);
-      byProduct.set(k, agg);
+    let agg = map.get(k);
+    if (!agg) {
+      agg = { zoneQty: new Map(), zoneLen: new Map(), zones: [] };
+      map.set(k, agg);
     }
 
-    if (boq) {
-      const k = normKey_(boq);
-      const agg = byBoq.get(k) || { qtySum: 0, lenValues: [] };
-      agg.qtySum += qty;
-      if (len > 0) agg.lenValues.push(len);
-      byBoq.set(k, agg);
+    if (!agg.zoneQty.has(zone)) agg.zones.push(zone);
+
+    const prevQ = agg.zoneQty.get(zone) || 0;
+    agg.zoneQty.set(zone, prevQ + (qty > 0 ? qty : 0));
+
+    if (!agg.zoneLen.has(zone) && len > 0) {
+      agg.zoneLen.set(zone, len);
     }
   }
 
-  // Convert lenValues[] -> representative lenValue (mode if possible else first)
+  for (let r = 1; r < values.length; r++) {
+    const boqCell = String(values[r][idxBoq] || "").trim();
+    if (boqCell) currentBoq = boqCell;
+
+    if (idxProduct !== -1) {
+      const prodCell = String(values[r][idxProduct] || "").trim();
+      if (prodCell) currentProduct = prodCell;
+    }
+
+    if (!currentBoq && !currentProduct) continue;
+
+    const zone = String(values[r][idxZone] || "").trim() || "misc";
+    const qty = toNumber_(values[r][idxQty]) ?? 0;
+    const len = toNumber_(values[r][idxLen]) ?? 0;
+
+    if (currentBoq) push_(byBoq, currentBoq, zone, qty, len);
+    if (currentProduct) push_(byProduct, currentProduct, zone, qty, len);
+  }
+
   function finalize(map) {
     const out = new Map();
-    for (const [k, v] of map.entries()) {
-      out.set(k, {
-        qtySum: roundSmart_(v.qtySum),
-        lenValue: pickLenRepresentative_(v.lenValues),
-      });
+    for (const [k, agg] of map.entries()) {
+      const zones = uniqKeepOrder_(agg.zones);
+      const qtyArr = zones.map(z => agg.zoneQty.get(z) || 0);
+      const lenArr = zones.map(z => agg.zoneLen.get(z) || null);
+      out.set(k, { zones, qtyArr, lenArr });
     }
     return out;
   }
@@ -389,32 +489,77 @@ function findBestGenHit_(genAgg, keysToTry) {
     const key = normKey_(k);
     if (!key) continue;
 
-    if (genAgg.byProduct.has(key)) return genAgg.byProduct.get(key);
     if (genAgg.byBoq.has(key)) return genAgg.byBoq.get(key);
+    if (genAgg.byProduct.has(key)) return genAgg.byProduct.get(key);
   }
   return null;
 }
 
-function pickLenRepresentative_(arr) {
-  if (!arr || !arr.length) return null;
-
-  // Mode with tolerance bucket (0.01 ft)
-  const buckets = new Map();
-  for (const x of arr) {
-    const b = (Math.round(x * 100) / 100).toFixed(2);
-    buckets.set(b, (buckets.get(b) || 0) + 1);
+function uniqKeepOrder_(arr) {
+  const seen = new Set();
+  const out = [];
+  for (const x of arr || []) {
+    const v = String(x || "").trim();
+    if (!v) continue;
+    if (seen.has(v)) continue;
+    seen.add(v);
+    out.push(v);
   }
+  return out;
+}
 
-  let best = null;
-  let bestCount = -1;
-  for (const [b, c] of buckets.entries()) {
-    if (c > bestCount) {
-      bestCount = c;
-      best = b;
+/* =========================
+   Block helpers
+   ========================= */
+
+function getItemBlockRange_(sheet, row, col) {
+  const cell = sheet.getRange(row, col);
+  if (cell.isPartOfMerge()) {
+    const m = cell.getMergedRanges()[0];
+    return { startRow: m.getRow(), numRows: m.getNumRows() };
+  }
+  return { startRow: row, numRows: 1 };
+}
+
+function insertRowsWithFormat_(sheet, afterRow, howMany, copyCols) {
+  sheet.insertRowsAfter(afterRow, howMany);
+  const srcFmt = sheet.getRange(afterRow, 1, 1, copyCols);
+  const dstFmt = sheet.getRange(afterRow + 1, 1, howMany, copyCols);
+  srcFmt.copyTo(dstFmt, { formatOnly: true });
+}
+
+function breakMergeIfAny_(sheet, row, col) {
+  const cell = sheet.getRange(row, col);
+  if (cell.isPartOfMerge()) cell.getMergedRanges()[0].breakApart();
+}
+
+function remakeMerge_(sheet, startRow, col, oldRows, newRows) {
+  const oldRange = sheet.getRange(startRow, col, oldRows, 1);
+  if (oldRange.isPartOfMerge()) oldRange.getMergedRanges()[0].breakApart();
+
+  if (newRows > 1) {
+    sheet.getRange(startRow, col, newRows, 1).merge().setVerticalAlignment("middle");
+  } else {
+    sheet.getRange(startRow, col).setVerticalAlignment("middle");
+  }
+}
+
+function ensureMergedExactly_(sheet, startRow, col, numRows) {
+  const rng = sheet.getRange(startRow, col, numRows, 1);
+  if (rng.isPartOfMerge()) {
+    const m = rng.getMergedRanges()[0];
+    if (m.getRow() === startRow && m.getColumn() === col && m.getNumRows() === numRows) {
+      m.setVerticalAlignment("middle");
+      return;
     }
+    m.breakApart();
   }
-  const bestNum = Number(best);
-  return Number.isFinite(bestNum) ? bestNum : arr[0];
+
+  if (numRows > 1) {
+    rng.merge().setVerticalAlignment("middle");
+  } else {
+    sheet.getRange(startRow, col).setVerticalAlignment("middle");
+  }
 }
 
 /* =========================
@@ -440,7 +585,6 @@ function toNumber_(v) {
 
 function roundSmart_(n) {
   if (n == null) return null;
-  // keep integers as integers
   if (Math.abs(n - Math.round(n)) < 1e-9) return Math.round(n);
   return Math.round(n * 1000) / 1000;
 }

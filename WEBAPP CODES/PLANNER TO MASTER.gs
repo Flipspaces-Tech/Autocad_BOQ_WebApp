@@ -1,42 +1,63 @@
 /**************************************************
+ * MASTER SCRIPT (hosted in MASTER spreadsheet)
+ * Menu:
+ * 1) Sync PLANNER → CALCULATION SHEET
+ * 2) Sync LAYER  → MASTER (Zones + Area)
+ *
+ * NOTE:
+ * - Keep ONLY one onOpen() in entire project (this one).
+ * - Shared utilities live here (toNumber_, a1_, colToA1_).
+ **************************************************/
+
+/**************************************************
  * PLANNER → CALCULATION SHEET (Rooms + Carpet Area)
  * - Source can be SAME spreadsheet or DIFFERENT via SOURCE_SS_ID
  * - Auto-finds source sheet by headers (name + area_sqft)
  * - Auto adds/removes rows BEFORE TOTAL
  * - Preserves TOTAL row + its formula
  * - Copies formatting from template row (full width)
- * - ✅ TOTAL row detection works even if TOTAL is merged (A:B etc.)
+ * - ✅ TOTAL row detection works even if TOTAL is merged
  **************************************************/
 
 const PLANNER_SYNC = {
-  // ✅ If PLANNER is in another spreadsheet, paste that ID here.
-  // If left "", source = ACTIVE spreadsheet.
+  // If PLANNER is in another spreadsheet, paste that ID here.
+  // If left "", source = ACTIVE spreadsheet (Master).
   SOURCE_SS_ID: "12AsC0b7_U4dxhfxEZwtrwOXXALAnEEkQm5N8tg_RByM",
 
   SOURCE_TAB: "PLANNER", // preferred source tab name (optional)
-  TARGET_TAB: "CALCULATION SHEET",
+  TARGET_TAB: "CARPET AREA",
 
   TOTAL_TEXT: "total",
 
   // how many columns to scan in each row to locate TOTAL
-  // (TOTAL is typically in merged A:B, and carpet is in C)
-  TOTAL_SCAN_COLS: 6, // scans A..F for the word "TOTAL"
+  TOTAL_SCAN_COLS: 6, // scans A..F for word "TOTAL"
 };
 
-function onOpen() { SpreadsheetApp.getUi() .createMenu("Vizdom Sync") .addItem("Sync PLANNER → CALCULATION SHEET", "syncPlannerToMaster") .addToUi(); }
+function onOpen() {
+  SpreadsheetApp.getUi()
+    .createMenu("Vizdom Sync")
+    .addItem("Sync PLANNER → CALCULATION SHEET", "syncPlannerToMaster")
+    .addSeparator()
+    .addItem("Sync LAYER → MASTER (Zones + Area)", "syncLayerToMasterZonesArea")
+    .addSeparator()
+    .addItem("DOORS", "syncDoorsOpeningsToMasterWithZones")
+    .addSeparator()
+    .addItem("Sync FLR/CL → CALCULATION SHEET", "syncFloorClToCalculationSheet")
+    .addToUi();
+}
 
 function syncPlannerToMaster() {
-  const targetSS = SpreadsheetApp.getActiveSpreadsheet();
+  const masterSS = SpreadsheetApp.getActiveSpreadsheet(); // ✅ script hosted in MASTER
 
-  // ✅ Source spreadsheet: either same as target or openById
+  // ✅ Source spreadsheet: either same as master or openById
   const sourceSS =
     (PLANNER_SYNC.SOURCE_SS_ID || "").trim()
       ? SpreadsheetApp.openById(PLANNER_SYNC.SOURCE_SS_ID.trim())
-      : targetSS;
+      : masterSS;
 
   const src = findPlannerSourceSheet_(sourceSS, PLANNER_SYNC.SOURCE_TAB);
-  const tgt = targetSS.getSheetByName(PLANNER_SYNC.TARGET_TAB);
-  if (!tgt) throw new Error(`Target tab not found: ${PLANNER_SYNC.TARGET_TAB}`);
+  const tgt = masterSS.getSheetByName(PLANNER_SYNC.TARGET_TAB);
+  if (!tgt) throw new Error(`Target tab not found in MASTER: ${PLANNER_SYNC.TARGET_TAB}`);
 
   // Read planner data (name + area_sqft)
   const planner = readPlannerRows_(src); // [{name, area}]
@@ -47,13 +68,7 @@ function syncPlannerToMaster() {
 
   // Locate header row & columns + TOTAL row in target (merge-safe)
   const targetInfo = findRoomsBlock_(tgt);
-  let {
-    dataStartRow,
-    totalRow,
-    colSno,
-    colRooms,
-    colCarpet,
-  } = targetInfo;
+  let { dataStartRow, totalRow, colSno, colRooms, colCarpet } = targetInfo;
 
   // Template row = first data row style
   const templateRow = dataStartRow;
@@ -66,7 +81,7 @@ function syncPlannerToMaster() {
   const neededDataCount = planner.length;
   const delta = neededDataCount - existingDataCount;
 
-  // Width to format-copy (whole sheet width so blue area matches too)
+  // Width to format-copy
   const lastCol = tgt.getLastColumn();
 
   if (delta > 0) {
@@ -77,7 +92,6 @@ function syncPlannerToMaster() {
     const srcFmt = tgt.getRange(templateRow, 1, 1, lastCol);
     const dstFmt = tgt.getRange(templateRow + existingDataCount, 1, delta, lastCol);
     srcFmt.copyTo(dstFmt, { formatOnly: true });
-
   } else if (delta < 0) {
     // Delete extra rows (keep TOTAL)
     tgt.deleteRows(dataStartRow + neededDataCount, -delta);
@@ -93,20 +107,18 @@ function syncPlannerToMaster() {
 
   // Write rows
   const sNoVals = planner.map((_, i) => [i + 1]);
-  const roomVals = planner.map(p => [p.name]);
-  const areaVals = planner.map(p => [p.area]);
+  const roomVals = planner.map((p) => [p.name]);
+  const areaVals = planner.map((p) => [p.area]);
 
   tgt.getRange(dataStartRow, colSno, planner.length, 1).setValues(sNoVals);
   tgt.getRange(dataStartRow, colRooms, planner.length, 1).setValues(roomVals);
   tgt.getRange(dataStartRow, colCarpet, planner.length, 1).setValues(areaVals);
 
-  // TOTAL formula in carpet col:
-  // Keep existing formula if present. If blank, set SUM over the new range.
-  const totalCell = tgt.getRange(totalRow, colCarpet);
   // Always rebuild TOTAL formula safely
-const startA1 = a1_(dataStartRow, colCarpet);
-const endA1 = a1_(dataStartRow + planner.length - 1, colCarpet);
-totalCell.setFormula(`=SUM(${startA1}:${endA1})`);
+  const totalCell = tgt.getRange(totalRow, colCarpet);
+  const startA1 = a1_(dataStartRow, colCarpet);
+  const endA1 = a1_(dataStartRow + planner.length - 1, colCarpet);
+  totalCell.setFormula(`=SUM(${startA1}:${endA1})`);
 
   SpreadsheetApp.getActive().toast(
     `Copied ${planner.length} room(s) from ${src.getName()} → ${tgt.getName()}`,
@@ -115,7 +127,7 @@ totalCell.setFormula(`=SUM(${startA1}:${endA1})`);
   );
 }
 
-/* -------------------- SOURCE -------------------- */
+/* -------------------- PLANNER SOURCE -------------------- */
 
 function findPlannerSourceSheet_(ss, preferredName) {
   // 1) try preferred name
@@ -130,8 +142,10 @@ function findPlannerSourceSheet_(ss, preferredName) {
     const lastRow = sh.getLastRow();
     if (lastRow < 1 || lastCol < 1) continue;
 
-    const header = sh.getRange(1, 1, 1, lastCol).getValues()[0]
-      .map(v => String(v || "").trim().toLowerCase());
+    const header = sh
+      .getRange(1, 1, 1, lastCol)
+      .getValues()[0]
+      .map((v) => String(v || "").trim().toLowerCase());
 
     if (header.includes("name") && header.includes("area_sqft")) return sh;
   }
@@ -147,7 +161,7 @@ function readPlannerRows_(srcSheet) {
   if (lastRow < 2) return [];
 
   const values = srcSheet.getRange(1, 1, lastRow, lastCol).getValues();
-  const header = values[0].map(v => String(v || "").trim().toLowerCase());
+  const header = values[0].map((v) => String(v || "").trim().toLowerCase());
 
   const idxName = header.indexOf("name");
   const idxArea = header.indexOf("area_sqft");
@@ -167,7 +181,7 @@ function readPlannerRows_(srcSheet) {
   return out;
 }
 
-/* -------------------- TARGET (merge-safe TOTAL) -------------------- */
+/* -------------------- PLANNER TARGET (merge-safe TOTAL) -------------------- */
 
 function findRoomsBlock_(tgtSheet) {
   const lastRow = tgtSheet.getLastRow();
@@ -179,14 +193,16 @@ function findRoomsBlock_(tgtSheet) {
   const scan = tgtSheet.getRange(1, 1, scanRows, scanCols).getValues();
 
   let headerRow = -1;
-  let colSno = -1, colRooms = -1, colCarpet = -1;
+  let colSno = -1,
+    colRooms = -1,
+    colCarpet = -1;
 
   for (let r = 0; r < scan.length; r++) {
-    const row = scan[r].map(v => String(v || "").trim().toLowerCase());
+    const row = scan[r].map((v) => String(v || "").trim().toLowerCase());
 
-    const snoIdx = row.findIndex(v => v.replace(/\./g, "") === "s no" || v === "s. no");
-    const roomsIdx = row.findIndex(v => v === "rooms");
-    const carpetIdx = row.findIndex(v => v === "carpet area");
+    const snoIdx = row.findIndex((v) => v.replace(/\./g, "") === "s no" || v === "s. no");
+    const roomsIdx = row.findIndex((v) => v === "rooms");
+    const carpetIdx = row.findIndex((v) => v === "carpet area");
 
     if (snoIdx !== -1 && roomsIdx !== -1 && carpetIdx !== -1) {
       headerRow = r + 1;
@@ -201,7 +217,7 @@ function findRoomsBlock_(tgtSheet) {
 
   const dataStartRow = headerRow + 1;
 
-  // ✅ Find TOTAL row by scanning A..F (or configured) for the word "TOTAL"
+  // Find TOTAL row by scanning A..F (or configured) for the word "TOTAL"
   const scanToCol = Math.min(lastCol, Math.max(PLANNER_SYNC.TOTAL_SCAN_COLS, colCarpet));
   const rowsBelow = Math.max(1, lastRow - headerRow);
   const block = tgtSheet.getRange(headerRow + 1, 1, rowsBelow, scanToCol).getValues();
@@ -209,11 +225,11 @@ function findRoomsBlock_(tgtSheet) {
   let totalRow = -1;
   for (let i = 0; i < block.length; i++) {
     const rowText = block[i]
-      .map(v => String(v || "").trim().toLowerCase())
+      .map((v) => String(v || "").trim().toLowerCase())
       .filter(Boolean);
 
-    if (rowText.some(t => t === PLANNER_SYNC.TOTAL_TEXT)) {
-      totalRow = (headerRow + 1) + i;
+    if (rowText.some((t) => t === PLANNER_SYNC.TOTAL_TEXT)) {
+      totalRow = headerRow + 1 + i;
       break;
     }
   }
@@ -223,7 +239,7 @@ function findRoomsBlock_(tgtSheet) {
   return { headerRow, dataStartRow, totalRow, colSno, colRooms, colCarpet };
 }
 
-/* -------------------- UTILS -------------------- */
+/* -------------------- SHARED UTILS (used by both scripts) -------------------- */
 
 function toNumber_(v) {
   if (v == null || v === "") return null;
@@ -234,6 +250,7 @@ function toNumber_(v) {
 function a1_(row, col) {
   return colToA1_(col) + row;
 }
+
 function colToA1_(n) {
   let s = "";
   while (n > 0) {
