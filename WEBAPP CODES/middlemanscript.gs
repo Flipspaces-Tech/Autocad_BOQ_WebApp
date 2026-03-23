@@ -889,12 +889,25 @@ function hideZeroRowsInTab_(sh, matchCol, measurementCol, qtyCol) {
   const qtyVals = sh.getRange(1, qtyCol, lastRow, 1).getValues();
   const measVals = measurementCol ? sh.getRange(1, measurementCol, lastRow, 1).getValues() : null;
 
+  // NEW: read column A (Sr. No. column)
+  const srVals = sh.getRange(1, 1, lastRow, 1).getDisplayValues();
+
   let hidden = 0;
   let unhidden = 0;
 
   for (let r = 2; r <= lastRow; r++) {
     const scope = String(sh.getRange(r, matchCol).getDisplayValue() || "").trim();
     if (!scope) continue;
+
+    // NEW: if column A contains alphabet-only or alphabet+number, never hide
+    const srText = String((srVals[r - 1] && srVals[r - 1][0]) || "").trim();
+    if (isAlphaSerialRow_(srText)) {
+      if (sh.isRowHiddenByUser(r)) {
+        sh.showRows(r);
+        unhidden++;
+      }
+      continue;
+    }
 
     if (isProtectedTotalRow_(scope)) {
       if (sh.isRowHiddenByUser(r)) {
@@ -1083,6 +1096,20 @@ function getLatestMasterCopyId_() {
 function pushZone_(arr, zone) {
   const z = (zone && String(zone).trim()) ? String(zone).trim() : "misc";
   if (!arr.includes(z)) arr.push(z);
+}
+
+function isAlphaSerialRow_(value) {
+  const s = String(value || "").trim();
+  if (!s) return false;
+
+  // Matches:
+  // A
+  // B
+  // A1
+  // A-1
+  // A.1
+  // AB12
+  return /^[A-Za-z]+(?:[.\-]?\d+)?$/.test(s);
 }
 
 function toNumber_(v) {
