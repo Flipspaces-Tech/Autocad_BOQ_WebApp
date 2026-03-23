@@ -39,7 +39,7 @@ const BOQ_SYNC = {
   QTY_HDR_QTYVALUE_PATTERNS: ["qty_value", "qty value", "qty", "quantity"],
 
   // Master template spreadsheet
-  MASTER_TEMPLATE_SS_ID: "12sJ3s0W8QkLXAwUKEJhPD-ydmQPCCHsv7sau3cOQszY",
+  MASTER_TEMPLATE_SS_ID: "1axPqIS-Ls5EGH3WWXQjp8sYOecUhxwaDQUTgHmKPosE",//12sJ3s0W8QkLXAwUKEJhPD-ydmQPCCHsv7sau3cOQszY
   MASTER_START_TAB: "Civil",
 
   // Header detection in master
