@@ -35,14 +35,23 @@ const PLANNER_SYNC = {
 
 function onOpen() {
   SpreadsheetApp.getUi()
+    // .createMenu("Vizdom Sync")
+    // .addItem("Sync PLANNER → CALCULATION SHEET", "syncPlannerToMaster")
+    // .addSeparator()
+    // .addItem("Sync LAYER → MASTER (Zones + Area)", "syncLayerToMasterZonesArea")
+    // .addSeparator()
+    // .addItem("DOORS", "syncDoorsOpeningsToMasterWithZones")
+    // .addSeparator()
+    // .addItem("Sync FLR/CL → CALCULATION SHEET", "syncFloorClToCalculationSheet")
+    // .addToUi();
     .createMenu("Vizdom Sync")
-    .addItem("Sync PLANNER → CALCULATION SHEET", "syncPlannerToMaster")
+    .addItem("CARPET AREA 1", "syncPlannerToMaster")
     .addSeparator()
-    .addItem("Sync LAYER → MASTER (Zones + Area)", "syncLayerToMasterZonesArea")
+    .addItem("SITE RECEE CALCULATION", "syncLayerToMasterZonesArea")
     .addSeparator()
-    .addItem("DOORS", "syncDoorsOpeningsToMasterWithZones")
+    .addItem("DOOR & WINDOW CALCULATION", "syncDoorsOpeningsToMasterWithZones")
     .addSeparator()
-    .addItem("Sync FLR/CL → CALCULATION SHEET", "syncFloorClToCalculationSheet")
+    .addItem("CARPET AREA 2", "syncFloorClToCalculationSheet")
     .addToUi();
 }
 
