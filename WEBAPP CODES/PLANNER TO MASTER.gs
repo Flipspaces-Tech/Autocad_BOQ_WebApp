@@ -11,12 +11,21 @@
 
 /**************************************************
  * PLANNER → CALCULATION SHEET (Rooms + Carpet Area)
- * - Source can be SAME spreadsheet or DIFFERENT via SOURCE_SS_ID
- * - Auto-finds source sheet by headers (name + area_sqft)
- * - Auto adds/removes rows BEFORE TOTAL
- * - Preserves TOTAL row + its formula
- * - Copies formatting from template row (full width)
- * - ✅ TOTAL row detection works even if TOTAL is merged
+ *
+ * MODES:
+ * - dynamic = old behavior
+ *   -> target fully follows planner, inserts/deletes rows
+ *
+ * - fixed = keep existing target room rows as-is
+ *   -> only fill matching Carpet Area values
+ *
+ * - hybrid = requested behavior
+ *   -> all non-fixed planner rooms first
+ *   -> fixed rooms always present at bottom in fixed order
+ *   -> if fixed room matches planner, fill its area
+ *   -> if not, keep it present anyway
+ *   -> fixed rooms forced to stay RED
+ *   -> planner room text color also transferred
  **************************************************/
 
 const PLANNER_SYNC = {
@@ -31,19 +40,24 @@ const PLANNER_SYNC = {
 
   // how many columns to scan in each row to locate TOTAL
   TOTAL_SCAN_COLS: 6, // scans A..F for word "TOTAL"
+
+  // "dynamic" | "fixed" | "hybrid"
+  MODE: "hybrid",
+
+  // These rooms must always remain present in hybrid mode
+  FIXED_ROOMS: [
+    "ELECTRICAL ROOM",
+    "SERVER ROOM",
+    "MALE WASHROOM",
+    "FEMALE WASHROOM"
+  ],
+
+  // Fixed rooms should remain red like your template
+  FIXED_ROOM_FONT_COLOR: "#ff0000"
 };
 
 function onOpen() {
   SpreadsheetApp.getUi()
-    // .createMenu("Vizdom Sync")
-    // .addItem("Sync PLANNER → CALCULATION SHEET", "syncPlannerToMaster")
-    // .addSeparator()
-    // .addItem("Sync LAYER → MASTER (Zones + Area)", "syncLayerToMasterZonesArea")
-    // .addSeparator()
-    // .addItem("DOORS", "syncDoorsOpeningsToMasterWithZones")
-    // .addSeparator()
-    // .addItem("Sync FLR/CL → CALCULATION SHEET", "syncFloorClToCalculationSheet")
-    // .addToUi();
     .createMenu("Vizdom Sync")
     .addItem("CARPET AREA 1", "syncPlannerToMaster")
     .addSeparator()
@@ -56,9 +70,8 @@ function onOpen() {
 }
 
 function syncPlannerToMaster() {
-  const masterSS = SpreadsheetApp.getActiveSpreadsheet(); // ✅ script hosted in MASTER
+  const masterSS = SpreadsheetApp.getActiveSpreadsheet();
 
-  // ✅ Source spreadsheet: either same as master or openById
   const sourceSS =
     (PLANNER_SYNC.SOURCE_SS_ID || "").trim()
       ? SpreadsheetApp.openById(PLANNER_SYNC.SOURCE_SS_ID.trim())
@@ -68,45 +81,219 @@ function syncPlannerToMaster() {
   const tgt = masterSS.getSheetByName(PLANNER_SYNC.TARGET_TAB);
   if (!tgt) throw new Error(`Target tab not found in MASTER: ${PLANNER_SYNC.TARGET_TAB}`);
 
-  // Read planner data (name + area_sqft)
-  const planner = readPlannerRows_(src); // [{name, area}]
+  const planner = readPlannerRows_(src); // [{name, area, color}]
   if (!planner.length) {
     SpreadsheetApp.getActive().toast("No planner rows found.", "PLANNER Sync", 6);
     return;
   }
 
-  // Locate header row & columns + TOTAL row in target (merge-safe)
+  const mode = String(PLANNER_SYNC.MODE || "dynamic").toLowerCase();
+
+  /**************************************************
+   * HYBRID MODE
+   * - non-fixed planner rooms first
+   * - fixed rooms always at bottom in fixed order
+   * - fixed rooms filled if matched, otherwise kept blank
+   * - fixed rooms forced red
+   * - planner room font colors transferred
+   **************************************************/
+  if (mode === "hybrid") {
+    const fixedRooms = Array.isArray(PLANNER_SYNC.FIXED_ROOMS)
+      ? PLANNER_SYNC.FIXED_ROOMS
+      : [];
+
+    const fixedKeySet = new Set(fixedRooms.map(normalizeRoomName_));
+
+    // Build planner map with area + color
+    const plannerMap = {};
+    planner.forEach((p) => {
+      const key = normalizeRoomName_(p.name);
+      if (key) {
+        plannerMap[key] = {
+          area: p.area,
+          color: p.color || "#000000"
+        };
+      }
+    });
+
+    // Non-fixed rooms come first and retain planner color
+    const normalPlannerRows = planner
+      .filter((p) => {
+        const key = normalizeRoomName_(p.name);
+        return key && !fixedKeySet.has(key);
+      })
+      .map((p) => ({
+        name: p.name,
+        area: p.area,
+        color: p.color || "#000000"
+      }));
+
+    // Fixed rooms always come at bottom and stay red
+    const fixedRows = fixedRooms.map((roomName) => {
+      const key = normalizeRoomName_(roomName);
+      return {
+        name: roomName,
+        area: Object.prototype.hasOwnProperty.call(plannerMap, key)
+          ? plannerMap[key].area
+          : "",
+        color: PLANNER_SYNC.FIXED_ROOM_FONT_COLOR || "#ff0000"
+      };
+    });
+
+    const finalRows = [...normalPlannerRows, ...fixedRows];
+
+    const targetInfo = findRoomsBlock_(tgt);
+    let { dataStartRow, totalRow, colSno, colRooms, colCarpet } = targetInfo;
+
+    const templateRow = dataStartRow;
+    if (templateRow >= totalRow) {
+      throw new Error("Template row invalid (no data row before TOTAL).");
+    }
+
+    const existingDataCount = Math.max(0, totalRow - dataStartRow);
+    const neededDataCount = finalRows.length;
+    const delta = neededDataCount - existingDataCount;
+    const lastCol = tgt.getLastColumn();
+
+    if (delta > 0) {
+      tgt.insertRowsBefore(totalRow, delta);
+
+      const srcFmt = tgt.getRange(templateRow, 1, 1, lastCol);
+      const dstFmt = tgt.getRange(templateRow + existingDataCount, 1, delta, lastCol);
+      srcFmt.copyTo(dstFmt, { formatOnly: true });
+    } else if (delta < 0) {
+      tgt.deleteRows(dataStartRow + neededDataCount, -delta);
+    }
+
+    // Re-find after row changes
+    const info2 = findRoomsBlock_(tgt);
+    dataStartRow = info2.dataStartRow;
+    totalRow = info2.totalRow;
+    colSno = info2.colSno;
+    colRooms = info2.colRooms;
+    colCarpet = info2.colCarpet;
+
+    const sNoVals = finalRows.map((_, i) => [i + 1]);
+    const roomVals = finalRows.map((r) => [r.name]);
+    const areaVals = finalRows.map((r) => [r.area]);
+
+    tgt.getRange(dataStartRow, colSno, finalRows.length, 1).setValues(sNoVals);
+    tgt.getRange(dataStartRow, colRooms, finalRows.length, 1).setValues(roomVals);
+    tgt.getRange(dataStartRow, colCarpet, finalRows.length, 1).setValues(areaVals);
+
+    // Apply font colors to ROOMS column
+    const roomFontColors = finalRows.map((r) => [r.color || "#000000"]);
+    tgt.getRange(dataStartRow, colRooms, finalRows.length, 1).setFontColors(roomFontColors);
+
+    const totalCell = tgt.getRange(totalRow, colCarpet);
+    const startA1 = a1_(dataStartRow, colCarpet);
+    const endA1 = a1_(dataStartRow + finalRows.length - 1, colCarpet);
+    totalCell.setFormula(`=SUM(${startA1}:${endA1})`);
+
+    SpreadsheetApp.getActive().toast(
+      `Hybrid sync done: ${normalPlannerRows.length} normal room(s) + ${fixedRows.length} fixed room(s)`,
+      "PLANNER Sync",
+      8
+    );
+    return;
+  }
+
+  /**************************************************
+   * FIXED MODE
+   * - keep target room list as-is
+   * - only fill matching Carpet Area
+   **************************************************/
+  if (mode === "fixed") {
+    const info = findRoomsBlock_(tgt);
+    const { dataStartRow, totalRow, colRooms, colCarpet } = info;
+
+    const targetRowCount = totalRow - dataStartRow;
+    if (targetRowCount <= 0) {
+      throw new Error("No room rows found between header and TOTAL.");
+    }
+
+    const targetRooms = tgt
+      .getRange(dataStartRow, colRooms, targetRowCount, 1)
+      .getValues()
+      .map((r) => String(r[0] || "").trim());
+
+    const existingCarpetValues = tgt
+      .getRange(dataStartRow, colCarpet, targetRowCount, 1)
+      .getValues();
+
+    const plannerMap = {};
+    planner.forEach((p) => {
+      const key = normalizeRoomName_(p.name);
+      if (key) {
+        plannerMap[key] = {
+          area: p.area,
+          color: p.color || "#000000"
+        };
+      }
+    });
+
+    const carpetOut = [];
+    const colorOut = [];
+    let matchedCount = 0;
+
+    for (let i = 0; i < targetRooms.length; i++) {
+      const roomName = targetRooms[i];
+      const key = normalizeRoomName_(roomName);
+
+      if (key && Object.prototype.hasOwnProperty.call(plannerMap, key)) {
+        carpetOut.push([plannerMap[key].area]);
+        colorOut.push([plannerMap[key].color || "#000000"]);
+        matchedCount++;
+      } else {
+        carpetOut.push([existingCarpetValues[i][0]]);
+        // keep existing font color if no match
+        colorOut.push([tgt.getRange(dataStartRow + i, colRooms).getFontColor()]);
+      }
+    }
+
+    tgt.getRange(dataStartRow, colCarpet, carpetOut.length, 1).setValues(carpetOut);
+    tgt.getRange(dataStartRow, colRooms, colorOut.length, 1).setFontColors(colorOut);
+
+    const totalCell = tgt.getRange(totalRow, colCarpet);
+    const startA1 = a1_(dataStartRow, colCarpet);
+    const endA1 = a1_(totalRow - 1, colCarpet);
+    totalCell.setFormula(`=SUM(${startA1}:${endA1})`);
+
+    SpreadsheetApp.getActive().toast(
+      `Fixed-mode sync: matched ${matchedCount} room(s)`,
+      "PLANNER Sync",
+      8
+    );
+    return;
+  }
+
+  /**************************************************
+   * DYNAMIC MODE (old behavior)
+   * - target fully follows planner
+   * - planner room font colors transferred
+   **************************************************/
   const targetInfo = findRoomsBlock_(tgt);
   let { dataStartRow, totalRow, colSno, colRooms, colCarpet } = targetInfo;
 
-  // Template row = first data row style
   const templateRow = dataStartRow;
   if (templateRow >= totalRow) throw new Error("Template row invalid (no data row before TOTAL).");
 
-  // How many rows exist currently between headers and TOTAL?
   const existingDataCount = Math.max(0, totalRow - dataStartRow);
-
-  // Need this many rows:
   const neededDataCount = planner.length;
   const delta = neededDataCount - existingDataCount;
 
-  // Width to format-copy
   const lastCol = tgt.getLastColumn();
 
   if (delta > 0) {
-    // Insert rows before TOTAL
     tgt.insertRowsBefore(totalRow, delta);
 
-    // Copy formatting from template row into newly inserted rows
     const srcFmt = tgt.getRange(templateRow, 1, 1, lastCol);
     const dstFmt = tgt.getRange(templateRow + existingDataCount, 1, delta, lastCol);
     srcFmt.copyTo(dstFmt, { formatOnly: true });
   } else if (delta < 0) {
-    // Delete extra rows (keep TOTAL)
     tgt.deleteRows(dataStartRow + neededDataCount, -delta);
   }
 
-  // Re-find positions (TOTAL row shifts after insert/delete)
   const info2 = findRoomsBlock_(tgt);
   dataStartRow = info2.dataStartRow;
   totalRow = info2.totalRow;
@@ -114,23 +301,23 @@ function syncPlannerToMaster() {
   colRooms = info2.colRooms;
   colCarpet = info2.colCarpet;
 
-  // Write rows
   const sNoVals = planner.map((_, i) => [i + 1]);
   const roomVals = planner.map((p) => [p.name]);
   const areaVals = planner.map((p) => [p.area]);
+  const colorVals = planner.map((p) => [p.color || "#000000"]);
 
   tgt.getRange(dataStartRow, colSno, planner.length, 1).setValues(sNoVals);
   tgt.getRange(dataStartRow, colRooms, planner.length, 1).setValues(roomVals);
   tgt.getRange(dataStartRow, colCarpet, planner.length, 1).setValues(areaVals);
+  tgt.getRange(dataStartRow, colRooms, planner.length, 1).setFontColors(colorVals);
 
-  // Always rebuild TOTAL formula safely
   const totalCell = tgt.getRange(totalRow, colCarpet);
   const startA1 = a1_(dataStartRow, colCarpet);
   const endA1 = a1_(dataStartRow + planner.length - 1, colCarpet);
   totalCell.setFormula(`=SUM(${startA1}:${endA1})`);
 
   SpreadsheetApp.getActive().toast(
-    `Copied ${planner.length} room(s) from ${src.getName()} → ${tgt.getName()}`,
+    `Dynamic sync: copied ${planner.length} room(s)`,
     "PLANNER Sync",
     8
   );
@@ -179,13 +366,21 @@ function readPlannerRows_(srcSheet) {
     throw new Error(`Source sheet "${srcSheet.getName()}" must contain headers: name, area_sqft`);
   }
 
+  const fontColors = srcSheet.getRange(2, 1, lastRow - 1, lastCol).getFontColors();
+
   const out = [];
   for (let r = 1; r < values.length; r++) {
     const name = String(values[r][idxName] || "").trim();
     if (!name) continue;
 
     const area = toNumber_(values[r][idxArea]);
-    out.push({ name, area: area ?? "" });
+    const nameColor = fontColors[r - 1][idxName];
+
+    out.push({
+      name,
+      area: area ?? "",
+      color: nameColor || "#000000"
+    });
   }
   return out;
 }
@@ -202,9 +397,9 @@ function findRoomsBlock_(tgtSheet) {
   const scan = tgtSheet.getRange(1, 1, scanRows, scanCols).getValues();
 
   let headerRow = -1;
-  let colSno = -1,
-    colRooms = -1,
-    colCarpet = -1;
+  let colSno = -1;
+  let colRooms = -1;
+  let colCarpet = -1;
 
   for (let r = 0; r < scan.length; r++) {
     const row = scan[r].map((v) => String(v || "").trim().toLowerCase());
@@ -222,7 +417,9 @@ function findRoomsBlock_(tgtSheet) {
     }
   }
 
-  if (headerRow === -1) throw new Error("Header row not found (need: S. No, ROOMS, Carpet Area).");
+  if (headerRow === -1) {
+    throw new Error("Header row not found (need: S. No, ROOMS, Carpet Area).");
+  }
 
   const dataStartRow = headerRow + 1;
 
@@ -248,7 +445,16 @@ function findRoomsBlock_(tgtSheet) {
   return { headerRow, dataStartRow, totalRow, colSno, colRooms, colCarpet };
 }
 
-/* -------------------- SHARED UTILS (used by both scripts) -------------------- */
+/* -------------------- SHARED UTILS -------------------- */
+
+function normalizeRoomName_(name) {
+  return String(name || "")
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 function toNumber_(v) {
   if (v == null || v === "") return null;

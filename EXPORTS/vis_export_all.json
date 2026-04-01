@@ -1,6 +1,6 @@
 ﻿{
-  "dwg": "Binary 1010-5.03.2026.dwg",
-  "totalInserts": 111,
+  "dwg": "Binary 1010-1.04.2026.dwg",
+  "totalInserts": 123,
   "items": [
     {
       "blockName": "3 IN.GYPSUM - DIVIDER",
@@ -12,20 +12,20 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "FS-PT-GYP 75",
+      "categoryLike": "FS-PT-GYP-75",
       "zoneCounts": {"misc": 6, "WORKHALL": 2}
     },
     {
       "blockName": "4INCH WALL",
       "totalCount": 2,
       "dynamicCount": 2,
-      "length_ft": 3.5182,
+      "length_ft": 3.7233,
       "width_ft": 0.3281,
-      "distance1_ft": 3.5182,
+      "distance1_ft": 3.7233,
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "FS-WL-SIP 4",
+      "categoryLike": "FS-WL-SIP-4",
       "zoneCounts": {"FEMALE WASHROOM": 1, "MALE WASHROOM": 1}
     },
     {
@@ -38,7 +38,7 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "FS-WL-SIP 6",
+      "categoryLike": "FS-WL-SIP-6",
       "zoneCounts": {"MALE WASHROOM": 1, "misc": 1}
     },
     {
@@ -51,21 +51,34 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "FS-WL-SIP 6",
+      "categoryLike": "FS-WL-SIP-6",
       "zoneCounts": {"FEMALE WASHROOM": 1, "MALE WASHROOM": 1}
     },
     {
-      "blockName": "bb4",
-      "totalCount": 3,
-      "dynamicCount": 3,
-      "length_ft": 1.4764,
-      "width_ft": 1.1912,
-      "distance1_ft": 1.4764,
+      "blockName": "CAFE TABLE RECT",
+      "totalCount": 1,
+      "dynamicCount": 0,
+      "length_ft": 380.3278,
+      "width_ft": 73.7374,
+      "distance1_ft": 0,
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "FS-SNT FIX",
-      "zoneCounts": {"FEMALE WASHROOM": 1, "MALE WASHROOM": 2}
+      "categoryLike": "FS-FUR-MD",
+      "zoneCounts": {"PANTRY": 1}
+    },
+    {
+      "blockName": "CONFERENCE TABLE - CUSTOM",
+      "totalCount": 1,
+      "dynamicCount": 1,
+      "length_ft": 8.0052,
+      "width_ft": 6.3441,
+      "distance1_ft": 8.0052,
+      "distance2_ft": 3.002,
+      "distance3_ft": 0,
+      "distance4_ft": 0,
+      "categoryLike": "FS-FUR-CSTM",
+      "zoneCounts": {"MEETING ROOM 8 PAX": 1}
     },
     {
       "blockName": "DECORATIVE PENDANT LIGHT- DOME",
@@ -81,7 +94,7 @@
       "zoneCounts": {"PANTRY": 1}
     },
     {
-      "blockName": "DESIGNER MS PARTITION",
+      "blockName": "DESIGNER GLASS PARTITION",
       "totalCount": 1,
       "dynamicCount": 1,
       "length_ft": 8.347,
@@ -90,7 +103,7 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "0",
+      "categoryLike": "FS-PT-DSN-GL",
       "zoneCounts": {"PANTRY": 1}
     },
     {
@@ -103,7 +116,7 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "0",
+      "categoryLike": "FS-WL-SIP-EX",
       "zoneCounts": {"misc": 10}
     },
     {
@@ -120,19 +133,6 @@
       "zoneCounts": {"misc": 1}
     },
     {
-      "blockName": "GLASS FLOOR SPRING SINGLE LEAF",
-      "totalCount": 4,
-      "dynamicCount": 4,
-      "length_ft": 2.9452,
-      "width_ft": 2.9429,
-      "distance1_ft": 2.9406,
-      "distance2_ft": 0,
-      "distance3_ft": 0,
-      "distance4_ft": 0,
-      "categoryLike": "FS-DR GL-S",
-      "zoneCounts": {"ENCLOSED CABIN": 1, "MEETING ROOM 8 PAX": 1, "RECEPTION": 2}
-    },
-    {
       "blockName": "GLASS FLOOR SPRING SINGLE LEAF1",
       "totalCount": 1,
       "dynamicCount": 0,
@@ -142,7 +142,7 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "FS-DR GL-S",
+      "categoryLike": "FS-DOOR",
       "zoneCounts": {"misc": 1}
     },
     {
@@ -155,21 +155,8 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "FS-PT-GL-S",
+      "categoryLike": "FS-PT-GL-SWTCH",
       "zoneCounts": {"misc": 3, "WORKHALL": 2}
-    },
-    {
-      "blockName": "h tgtrf",
-      "totalCount": 1,
-      "dynamicCount": 0,
-      "length_ft": 2.1325,
-      "width_ft": 2.084,
-      "distance1_ft": 0,
-      "distance2_ft": 0,
-      "distance3_ft": 0,
-      "distance4_ft": 0,
-      "categoryLike": "FS-PT-PHN",
-      "zoneCounts": {"MALE WASHROOM": 1}
     },
     {
       "blockName": "HEALTH FAUCET 2",
@@ -183,32 +170,6 @@
       "distance4_ft": 0,
       "categoryLike": "FS-SNT FIX",
       "zoneCounts": {"FEMALE WASHROOM": 1, "MALE WASHROOM": 1}
-    },
-    {
-      "blockName": "HIGH CHAIR",
-      "totalCount": 6,
-      "dynamicCount": 0,
-      "length_ft": 1.7224,
-      "width_ft": 1.4764,
-      "distance1_ft": 0,
-      "distance2_ft": 0,
-      "distance3_ft": 0,
-      "distance4_ft": 0,
-      "categoryLike": "FS-FUR-MD",
-      "zoneCounts": {"PANTRY": 6}
-    },
-    {
-      "blockName": "HIGH TABLE- 6 PAX",
-      "totalCount": 1,
-      "dynamicCount": 0,
-      "length_ft": 380.3278,
-      "width_ft": 73.7374,
-      "distance1_ft": 0,
-      "distance2_ft": 0,
-      "distance3_ft": 0,
-      "distance4_ft": 0,
-      "categoryLike": "FS-FUR-MD",
-      "zoneCounts": {"PANTRY": 1}
     },
     {
       "blockName": "INTERACTIVE TABLE",
@@ -237,9 +198,22 @@
       "zoneCounts": {"PANTRY": 1}
     },
     {
+      "blockName": "Linear Double Side Workstation without pedestal",
+      "totalCount": 4,
+      "dynamicCount": 4,
+      "length_ft": 7.1624,
+      "width_ft": 3.9436,
+      "distance1_ft": 0,
+      "distance2_ft": 0,
+      "distance3_ft": 0,
+      "distance4_ft": 0,
+      "categoryLike": "0",
+      "zoneCounts": {"ENCLOSED CABIN": 4}
+    },
+    {
       "blockName": "LINEAR SUSPENDED  TASK LIGHT",
-      "totalCount": 10,
-      "dynamicCount": 10,
+      "totalCount": 9,
+      "dynamicCount": 9,
       "length_ft": 7.874,
       "width_ft": 0.2789,
       "distance1_ft": 0,
@@ -247,33 +221,7 @@
       "distance3_ft": 0,
       "distance4_ft": 0,
       "categoryLike": "FS- LNR LT",
-      "zoneCounts": {"ENCLOSED CABIN": 2, "WORKHALL": 8}
-    },
-    {
-      "blockName": "LINEAR WORKSTATION  WITH PEDESTAL",
-      "totalCount": 27,
-      "dynamicCount": 27,
-      "length_ft": 3.9436,
-      "width_ft": 3.5812,
-      "distance1_ft": 0,
-      "distance2_ft": 0,
-      "distance3_ft": 0,
-      "distance4_ft": 0,
-      "categoryLike": "FS-FUR-MD",
-      "zoneCounts": {"ENCLOSED CABIN": 8, "WORKHALL": 19}
-    },
-    {
-      "blockName": "LINEAR WORKSTATION  WITH PEDESTAL1",
-      "totalCount": 1,
-      "dynamicCount": 0,
-      "length_ft": 3.9436,
-      "width_ft": 3.5812,
-      "distance1_ft": 0,
-      "distance2_ft": 0,
-      "distance3_ft": 0,
-      "distance4_ft": 0,
-      "categoryLike": "FS-FUR-MD",
-      "zoneCounts": {"WORKHALL": 1}
+      "zoneCounts": {"WORKHALL": 9}
     },
     {
       "blockName": "LOCKER ROOM",
@@ -289,32 +237,6 @@
       "zoneCounts": {"PANTRY": 1}
     },
     {
-      "blockName": "MEDIUM BACK CHAIR",
-      "totalCount": 1,
-      "dynamicCount": 1,
-      "length_ft": 1.8345,
-      "width_ft": 1.6678,
-      "distance1_ft": 0,
-      "distance2_ft": 0,
-      "distance3_ft": 0,
-      "distance4_ft": 0,
-      "categoryLike": "FS-FUR-LS",
-      "zoneCounts": {"RECEPTION": 1}
-    },
-    {
-      "blockName": "MEETING ROOM TABLE 8 PAX",
-      "totalCount": 1,
-      "dynamicCount": 1,
-      "length_ft": 8.0052,
-      "width_ft": 6.3441,
-      "distance1_ft": 8.0052,
-      "distance2_ft": 3.002,
-      "distance3_ft": 0,
-      "distance4_ft": 0,
-      "categoryLike": "FS-FUR-CSTM",
-      "zoneCounts": {"MEETING ROOM 8 PAX": 1}
-    },
-    {
       "blockName": "PAPER HOLDER",
       "totalCount": 2,
       "dynamicCount": 2,
@@ -326,6 +248,58 @@
       "distance4_ft": 0,
       "categoryLike": "FS-SNT FIX",
       "zoneCounts": {"FEMALE WASHROOM": 1, "MALE WASHROOM": 1}
+    },
+    {
+      "blockName": "PARTITION WITH LINEAR WORKSTATION W-O PEDESTAL",
+      "totalCount": 18,
+      "dynamicCount": 18,
+      "length_ft": 3.9478,
+      "width_ft": 3.7452,
+      "distance1_ft": 0,
+      "distance2_ft": 0,
+      "distance3_ft": 0,
+      "distance4_ft": 0,
+      "categoryLike": "0",
+      "zoneCounts": {"WORKHALL": 18}
+    },
+    {
+      "blockName": "PEDESTAL WITH 3 DRAWER",
+      "totalCount": 26,
+      "dynamicCount": 26,
+      "length_ft": 1.371,
+      "width_ft": 1.3123,
+      "distance1_ft": 0,
+      "distance2_ft": 0,
+      "distance3_ft": 0,
+      "distance4_ft": 0,
+      "categoryLike": "0",
+      "zoneCounts": {"ENCLOSED CABIN": 8, "WORKHALL": 18}
+    },
+    {
+      "blockName": "PHINOLIC CUBICAL",
+      "totalCount": 1,
+      "dynamicCount": 0,
+      "length_ft": 4.3471,
+      "width_ft": 3.5389,
+      "distance1_ft": 0,
+      "distance2_ft": 0,
+      "distance3_ft": 0,
+      "distance4_ft": 0,
+      "categoryLike": "FS-SNT FIX",
+      "zoneCounts": {"MALE WASHROOM": 1}
+    },
+    {
+      "blockName": "RECEPTION TABLE - BUDGET",
+      "totalCount": 1,
+      "dynamicCount": 0,
+      "length_ft": 3.9367,
+      "width_ft": 3.9047,
+      "distance1_ft": 0,
+      "distance2_ft": 0,
+      "distance3_ft": 0,
+      "distance4_ft": 0,
+      "categoryLike": "FS-FUR-CSTM",
+      "zoneCounts": {"RECEPTION": 1}
     },
     {
       "blockName": "SERVER RACK",
@@ -341,6 +315,19 @@
       "zoneCounts": {"WORKHALL": 1}
     },
     {
+      "blockName": "SINGLE LEAF GLASS DOOR",
+      "totalCount": 4,
+      "dynamicCount": 4,
+      "length_ft": 2.9452,
+      "width_ft": 2.9429,
+      "distance1_ft": 2.9406,
+      "distance2_ft": 0,
+      "distance3_ft": 0,
+      "distance4_ft": 0,
+      "categoryLike": "FS-DOOR",
+      "zoneCounts": {"ENCLOSED CABIN": 1, "MEETING ROOM 8 PAX": 1, "RECEPTION": 2}
+    },
+    {
       "blockName": "SS SINK-SINGLE BOWL",
       "totalCount": 1,
       "dynamicCount": 1,
@@ -350,7 +337,7 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "FS-PN FIX",
+      "categoryLike": "FS-SNT FIX",
       "zoneCounts": {"PANTRY": 1}
     },
     {
@@ -363,7 +350,7 @@
       "distance2_ft": 0,
       "distance3_ft": 0,
       "distance4_ft": 0,
-      "categoryLike": "FS-DR-TL-FLS",
+      "categoryLike": "FS-DOOR",
       "zoneCounts": {"FEMALE WASHROOM": 1, "MALE WASHROOM": 1}
     },
     {
@@ -406,19 +393,6 @@
       "zoneCounts": {"MALE WASHROOM": 1}
     },
     {
-      "blockName": "VCFDXZ",
-      "totalCount": 1,
-      "dynamicCount": 0,
-      "length_ft": 3.9367,
-      "width_ft": 1.971,
-      "distance1_ft": 0,
-      "distance2_ft": 0,
-      "distance3_ft": 0,
-      "distance4_ft": 0,
-      "categoryLike": "FS-FUR-CSTM",
-      "zoneCounts": {"RECEPTION": 1}
-    },
-    {
       "blockName": "WALL MOUNTED TANK WC",
       "totalCount": 2,
       "dynamicCount": 2,
@@ -430,6 +404,19 @@
       "distance4_ft": 0,
       "categoryLike": "FS-SNT FIX",
       "zoneCounts": {"FEMALE WASHROOM": 1, "MALE WASHROOM": 1}
+    },
+    {
+      "blockName": "WASH BASIN-COUNTER TOP",
+      "totalCount": 3,
+      "dynamicCount": 3,
+      "length_ft": 1.4764,
+      "width_ft": 1.1912,
+      "distance1_ft": 1.4764,
+      "distance2_ft": 0,
+      "distance3_ft": 0,
+      "distance4_ft": 0,
+      "categoryLike": "FS-SNT FIX",
+      "zoneCounts": {"FEMALE WASHROOM": 1, "MALE WASHROOM": 2}
     }
   ]
 }

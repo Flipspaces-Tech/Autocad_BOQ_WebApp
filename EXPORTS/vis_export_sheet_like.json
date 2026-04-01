@@ -1,25 +1,47 @@
 ﻿{
-  "dwg": "Binary 1010-5.03.2026.dwg",
+  "dwg": "Binary 1010-1.04.2026.dwg",
   "items": [
     {
       "Product": "0",
-      "BOQ name": "DESIGNER MS PARTITION",
-      "zone": "PANTRY",
-      "Config": "Distance1=2544.0762; Origin=(96824.952151205,63459.4749781576,-0.000472636112859526)",
-      "qty_value": 1,
-      "length (ft)": 8.347,
-      "width (ft)": 0.3418,
-      "Params": "d1=8.35",
+      "BOQ name": "Linear Double Side Workstation without pedestal",
+      "zone": "ENCLOSED CABIN",
+      "Config": "Angle1=3.1982; Depth -2=571.25; Depth-1=578.75; length=1202; Origin=(57700.4013516886,55983.9383784729,0); Position1 X=58075.4014; Position1 Y=57183.9384; x=1",
+      "qty_value": 4,
+      "length (ft)": 7.1624,
+      "width (ft)": 3.9436,
+      "Params": "",
       "Preview": ""
     },
     {
       "Product": "0",
-      "BOQ name": "EXISTING WALL",
-      "zone": "misc",
-      "Config": "D-2=152; L-1=2497.5542; Origin=(95138.4336079648,76490.042732825,0); Position1 X=94538.4336; Position1 Y=76542.0427",
-      "qty_value": 10,
-      "length (ft)": 8.1941,
-      "width (ft)": 0.4987,
+      "BOQ name": "PARTITION WITH LINEAR WORKSTATION W-O PEDESTAL",
+      "zone": "WORKHALL",
+      "Config": "LENGTH=1203.3001; Origin=(29262.2852162655,56615.7461513247,-4.087279486998E-10); Position1 X=29262.2852; Position1 Y=56615.7462; WIDTH=650; X=0; Y=0",
+      "qty_value": 18,
+      "length (ft)": 3.9478,
+      "width (ft)": 3.7452,
+      "Params": "",
+      "Preview": ""
+    },
+    {
+      "Product": "0",
+      "BOQ name": "PEDESTAL WITH 3 DRAWER",
+      "zone": "ENCLOSED CABIN",
+      "Config": "Angle1=0.245; LENGTH=400; Origin=(28476.6218493157,52969.0478016463,-4.087279486998E-10); Position1 X=28276.6218; Position1 Y=53369.0478; WIDTH=400",
+      "qty_value": 8,
+      "length (ft)": 1.371,
+      "width (ft)": 1.3123,
+      "Params": "",
+      "Preview": ""
+    },
+    {
+      "Product": "0",
+      "BOQ name": "PEDESTAL WITH 3 DRAWER",
+      "zone": "WORKHALL",
+      "Config": "Angle1=0.245; LENGTH=400; Origin=(28476.6218493157,52969.0478016463,-4.087279486998E-10); Position1 X=28276.6218; Position1 Y=53369.0478; WIDTH=400",
+      "qty_value": 18,
+      "length (ft)": 1.371,
+      "width (ft)": 1.3123,
       "Params": "",
       "Preview": ""
     },
@@ -37,60 +59,16 @@
     {
       "Product": "FS- LNR LT",
       "BOQ name": "LINEAR SUSPENDED  TASK LIGHT",
-      "zone": "ENCLOSED CABIN",
-      "Config": "LENGTH=2400; Origin=(82630.5694027374,44735.2748789497,0); Position1 X=82630.5694; Position1 Y=44650.2749",
-      "qty_value": 2,
-      "length (ft)": 7.874,
-      "width (ft)": 0.2789,
-      "Params": "",
-      "Preview": ""
-    },
-    {
-      "Product": "FS- LNR LT",
-      "BOQ name": "LINEAR SUSPENDED  TASK LIGHT",
       "zone": "WORKHALL",
       "Config": "LENGTH=2400; Origin=(82630.5694027374,44735.2748789497,0); Position1 X=82630.5694; Position1 Y=44650.2749",
-      "qty_value": 8,
+      "qty_value": 9,
       "length (ft)": 7.874,
       "width (ft)": 0.2789,
       "Params": "",
       "Preview": ""
     },
     {
-      "Product": "FS-DR GL-S",
-      "BOQ name": "GLASS FLOOR SPRING SINGLE LEAF",
-      "zone": "ENCLOSED CABIN",
-      "Config": "Distance1=896.2813; Origin=(100584.937194041,67126.4150300895,-4.14697085003957E-10); SCALE=858.7615; X=0",
-      "qty_value": 1,
-      "length (ft)": 2.9452,
-      "width (ft)": 2.9429,
-      "Params": "d1=2.94",
-      "Preview": ""
-    },
-    {
-      "Product": "FS-DR GL-S",
-      "BOQ name": "GLASS FLOOR SPRING SINGLE LEAF",
-      "zone": "MEETING ROOM 8 PAX",
-      "Config": "Distance1=896.2813; Origin=(100584.937194041,67126.4150300895,-4.14697085003957E-10); SCALE=858.7615; X=0",
-      "qty_value": 1,
-      "length (ft)": 2.9452,
-      "width (ft)": 2.9429,
-      "Params": "d1=2.94",
-      "Preview": ""
-    },
-    {
-      "Product": "FS-DR GL-S",
-      "BOQ name": "GLASS FLOOR SPRING SINGLE LEAF",
-      "zone": "RECEPTION",
-      "Config": "Distance1=896.2813; Origin=(100584.937194041,67126.4150300895,-4.14697085003957E-10); SCALE=858.7615; X=0",
-      "qty_value": 2,
-      "length (ft)": 2.9452,
-      "width (ft)": 2.9429,
-      "Params": "d1=2.94",
-      "Preview": ""
-    },
-    {
-      "Product": "FS-DR GL-S",
+      "Product": "FS-DOOR",
       "BOQ name": "GLASS FLOOR SPRING SINGLE LEAF1",
       "zone": "misc",
       "Config": "",
@@ -101,7 +79,40 @@
       "Preview": ""
     },
     {
-      "Product": "FS-DR-TL-FLS",
+      "Product": "FS-DOOR",
+      "BOQ name": "SINGLE LEAF GLASS DOOR",
+      "zone": "ENCLOSED CABIN",
+      "Config": "Distance1=896.2813; Origin=(100584.937194041,67126.4150300895,-4.14697085003957E-10); SCALE=858.7615; X=0",
+      "qty_value": 1,
+      "length (ft)": 2.9452,
+      "width (ft)": 2.9429,
+      "Params": "d1=2.94",
+      "Preview": ""
+    },
+    {
+      "Product": "FS-DOOR",
+      "BOQ name": "SINGLE LEAF GLASS DOOR",
+      "zone": "MEETING ROOM 8 PAX",
+      "Config": "Distance1=896.2813; Origin=(100584.937194041,67126.4150300895,-4.14697085003957E-10); SCALE=858.7615; X=0",
+      "qty_value": 1,
+      "length (ft)": 2.9452,
+      "width (ft)": 2.9429,
+      "Params": "d1=2.94",
+      "Preview": ""
+    },
+    {
+      "Product": "FS-DOOR",
+      "BOQ name": "SINGLE LEAF GLASS DOOR",
+      "zone": "RECEPTION",
+      "Config": "Distance1=896.2813; Origin=(100584.937194041,67126.4150300895,-4.14697085003957E-10); SCALE=858.7615; X=0",
+      "qty_value": 2,
+      "length (ft)": 2.9452,
+      "width (ft)": 2.9429,
+      "Params": "d1=2.94",
+      "Preview": ""
+    },
+    {
+      "Product": "FS-DOOR",
       "BOQ name": "TOILET FLUSH DOOR",
       "zone": "FEMALE WASHROOM",
       "Config": "DOOR WIDTH=750; Flip state1=0; Origin=(119296.464682995,67082.0764534405,-4.08727948698318E-10); SCALE=705.25",
@@ -112,7 +123,7 @@
       "Preview": ""
     },
     {
-      "Product": "FS-DR-TL-FLS",
+      "Product": "FS-DOOR",
       "BOQ name": "TOILET FLUSH DOOR",
       "zone": "MALE WASHROOM",
       "Config": "DOOR WIDTH=750; Flip state1=0; Origin=(119296.464682995,67082.0764534405,-4.08727948698318E-10); SCALE=705.25",
@@ -135,6 +146,17 @@
     },
     {
       "Product": "FS-FUR-CSTM",
+      "BOQ name": "CONFERENCE TABLE - CUSTOM",
+      "zone": "MEETING ROOM 8 PAX",
+      "Config": "Distance1=2440; Distance2=915; Flip state1=0; Flip state2=0; Origin=(31974.6750491296,46345.9305723985,0); Position1 X=813299.6575; Position1 Y=1177044.0687",
+      "qty_value": 1,
+      "length (ft)": 8.0052,
+      "width (ft)": 6.3441,
+      "Params": "d1=8.01, d2=3",
+      "Preview": ""
+    },
+    {
+      "Product": "FS-FUR-CSTM",
       "BOQ name": "LOCKER ROOM",
       "zone": "PANTRY",
       "Config": "",
@@ -146,23 +168,12 @@
     },
     {
       "Product": "FS-FUR-CSTM",
-      "BOQ name": "MEETING ROOM TABLE 8 PAX",
-      "zone": "MEETING ROOM 8 PAX",
-      "Config": "Distance1=2440; Distance2=915; Flip state1=0; Flip state2=0; Origin=(31974.6750491296,46345.9305723985,0); Position1 X=813299.6575; Position1 Y=1177044.0687",
-      "qty_value": 1,
-      "length (ft)": 8.0052,
-      "width (ft)": 6.3441,
-      "Params": "d1=8.01, d2=3",
-      "Preview": ""
-    },
-    {
-      "Product": "FS-FUR-CSTM",
-      "BOQ name": "VCFDXZ",
+      "BOQ name": "RECEPTION TABLE - BUDGET",
       "zone": "RECEPTION",
       "Config": "",
       "qty_value": 1,
       "length (ft)": 3.9367,
-      "width (ft)": 1.971,
+      "width (ft)": 3.9047,
       "Params": "",
       "Preview": ""
     },
@@ -178,79 +189,13 @@
       "Preview": ""
     },
     {
-      "Product": "FS-FUR-LS",
-      "BOQ name": "MEDIUM BACK CHAIR",
-      "zone": "RECEPTION",
-      "Config": "Angle1=1.5708; Origin=(7.99999999999955,0,0)",
-      "qty_value": 1,
-      "length (ft)": 1.8345,
-      "width (ft)": 1.6678,
-      "Params": "",
-      "Preview": ""
-    },
-    {
       "Product": "FS-FUR-MD",
-      "BOQ name": "HIGH CHAIR",
-      "zone": "PANTRY",
-      "Config": "",
-      "qty_value": 6,
-      "length (ft)": 1.7224,
-      "width (ft)": 1.4764,
-      "Params": "",
-      "Preview": ""
-    },
-    {
-      "Product": "FS-FUR-MD",
-      "BOQ name": "HIGH TABLE- 6 PAX",
+      "BOQ name": "CAFE TABLE RECT",
       "zone": "PANTRY",
       "Config": "",
       "qty_value": 1,
       "length (ft)": 380.3278,
       "width (ft)": 73.7374,
-      "Params": "",
-      "Preview": ""
-    },
-    {
-      "Product": "FS-FUR-MD",
-      "BOQ name": "LINEAR WORKSTATION  WITH PEDESTAL",
-      "zone": "ENCLOSED CABIN",
-      "Config": "LENGTH=1202; Origin=(31462.6712177903,55706.1842089315,-4.087279486998E-10); Position1 X=30260.6712; Position1 Y=54623.9886; Position2 X=31462.6712; Position2 Y=55406.1842; WIDTH=600; X=0; Y=1",
-      "qty_value": 8,
-      "length (ft)": 3.9436,
-      "width (ft)": 3.5812,
-      "Params": "",
-      "Preview": ""
-    },
-    {
-      "Product": "FS-FUR-MD",
-      "BOQ name": "LINEAR WORKSTATION  WITH PEDESTAL",
-      "zone": "WORKHALL",
-      "Config": "LENGTH=1202; Origin=(31462.6712177903,55706.1842089315,-4.087279486998E-10); Position1 X=30260.6712; Position1 Y=54623.9886; Position2 X=31462.6712; Position2 Y=55406.1842; WIDTH=600; X=0; Y=1",
-      "qty_value": 19,
-      "length (ft)": 3.9436,
-      "width (ft)": 3.5812,
-      "Params": "",
-      "Preview": ""
-    },
-    {
-      "Product": "FS-FUR-MD",
-      "BOQ name": "LINEAR WORKSTATION  WITH PEDESTAL1",
-      "zone": "WORKHALL",
-      "Config": "",
-      "qty_value": 1,
-      "length (ft)": 3.9436,
-      "width (ft)": 3.5812,
-      "Params": "",
-      "Preview": ""
-    },
-    {
-      "Product": "FS-PN FIX",
-      "BOQ name": "SS SINK-SINGLE BOWL",
-      "zone": "PANTRY",
-      "Config": "DEPTH=450; Origin=(115539.972486006,72897.6059326818,-4.08727948653422E-10); Position1 X=115839.9725; Position1 Y=73122.6059; WASTE COUPLING BASIN=300; WIDTH=600",
-      "qty_value": 1,
-      "length (ft)": 1.9685,
-      "width (ft)": 1.4633,
       "Params": "",
       "Preview": ""
     },
@@ -299,7 +244,18 @@
       "Preview": ""
     },
     {
-      "Product": "FS-PT-GL-S",
+      "Product": "FS-PT-DSN-GL",
+      "BOQ name": "DESIGNER GLASS PARTITION",
+      "zone": "PANTRY",
+      "Config": "Distance1=2544.0762; Origin=(96824.952151205,63459.4749781576,-0.000472636112859526)",
+      "qty_value": 1,
+      "length (ft)": 8.347,
+      "width (ft)": 0.3418,
+      "Params": "d1=8.35",
+      "Preview": ""
+    },
+    {
+      "Product": "FS-PT-GL-SWTCH",
       "BOQ name": "glass partition1",
       "zone": "misc",
       "Config": "Distance1=3342.3927; Origin=(404442.665796813,-261895.805703095,0)",
@@ -310,7 +266,7 @@
       "Preview": ""
     },
     {
-      "Product": "FS-PT-GL-S",
+      "Product": "FS-PT-GL-SWTCH",
       "BOQ name": "glass partition1",
       "zone": "WORKHALL",
       "Config": "Distance1=3342.3927; Origin=(404442.665796813,-261895.805703095,0)",
@@ -321,7 +277,7 @@
       "Preview": ""
     },
     {
-      "Product": "FS-PT-GYP 75",
+      "Product": "FS-PT-GYP-75",
       "BOQ name": "3 IN.GYPSUM - DIVIDER",
       "zone": "misc",
       "Config": "L-1=655.459; Origin=(96792.9484682288,71872.9103432483,0)",
@@ -332,7 +288,7 @@
       "Preview": ""
     },
     {
-      "Product": "FS-PT-GYP 75",
+      "Product": "FS-PT-GYP-75",
       "BOQ name": "3 IN.GYPSUM - DIVIDER",
       "zone": "WORKHALL",
       "Config": "L-1=655.459; Origin=(96792.9484682288,71872.9103432483,0)",
@@ -343,39 +299,6 @@
       "Preview": ""
     },
     {
-      "Product": "FS-PT-PHN",
-      "BOQ name": "h tgtrf",
-      "zone": "MALE WASHROOM",
-      "Config": "",
-      "qty_value": 1,
-      "length (ft)": 2.1325,
-      "width (ft)": 2.084,
-      "Params": "",
-      "Preview": ""
-    },
-    {
-      "Product": "FS-SNT FIX",
-      "BOQ name": "bb4",
-      "zone": "FEMALE WASHROOM",
-      "Config": "Distance1=450; Origin=(7.50164644803015,4.17176647476706,0)",
-      "qty_value": 1,
-      "length (ft)": 1.4764,
-      "width (ft)": 1.1912,
-      "Params": "d1=1.48",
-      "Preview": ""
-    },
-    {
-      "Product": "FS-SNT FIX",
-      "BOQ name": "bb4",
-      "zone": "MALE WASHROOM",
-      "Config": "Distance1=450; Origin=(7.50164644803015,4.17176647476706,0)",
-      "qty_value": 2,
-      "length (ft)": 1.4764,
-      "width (ft)": 1.1912,
-      "Params": "d1=1.48",
-      "Preview": ""
-    },
-    {
       "Product": "FS-SNT FIX",
       "BOQ name": "HEALTH FAUCET 2",
       "zone": "FEMALE WASHROOM",
@@ -416,6 +339,28 @@
       "qty_value": 1,
       "length (ft)": 0.5126,
       "width (ft)": 0.4053,
+      "Params": "",
+      "Preview": ""
+    },
+    {
+      "Product": "FS-SNT FIX",
+      "BOQ name": "PHINOLIC CUBICAL",
+      "zone": "MALE WASHROOM",
+      "Config": "",
+      "qty_value": 1,
+      "length (ft)": 4.3471,
+      "width (ft)": 3.5389,
+      "Params": "",
+      "Preview": ""
+    },
+    {
+      "Product": "FS-SNT FIX",
+      "BOQ name": "SS SINK-SINGLE BOWL",
+      "zone": "PANTRY",
+      "Config": "DEPTH=450; Origin=(115539.972486006,72897.6059326818,-4.08727948653422E-10); Position1 X=115839.9725; Position1 Y=73122.6059; WASTE COUPLING BASIN=300; WIDTH=600",
+      "qty_value": 1,
+      "length (ft)": 1.9685,
+      "width (ft)": 1.4633,
       "Params": "",
       "Preview": ""
     },
@@ -464,29 +409,51 @@
       "Preview": ""
     },
     {
-      "Product": "FS-WL-SIP 4",
+      "Product": "FS-SNT FIX",
+      "BOQ name": "WASH BASIN-COUNTER TOP",
+      "zone": "FEMALE WASHROOM",
+      "Config": "Distance1=450; Origin=(7.50164644803015,4.17176647476706,0)",
+      "qty_value": 1,
+      "length (ft)": 1.4764,
+      "width (ft)": 1.1912,
+      "Params": "d1=1.48",
+      "Preview": ""
+    },
+    {
+      "Product": "FS-SNT FIX",
+      "BOQ name": "WASH BASIN-COUNTER TOP",
+      "zone": "MALE WASHROOM",
+      "Config": "Distance1=450; Origin=(7.50164644803015,4.17176647476706,0)",
+      "qty_value": 2,
+      "length (ft)": 1.4764,
+      "width (ft)": 1.1912,
+      "Params": "d1=1.48",
+      "Preview": ""
+    },
+    {
+      "Product": "FS-WL-SIP-4",
       "BOQ name": "4INCH WALL",
       "zone": "FEMALE WASHROOM",
-      "Config": "Distance1=1072.3576; Origin=(404754.605787327,-262690.236273115,0)",
+      "Config": "Distance1=1134.8576; Origin=(404754.605787327,-262690.236273115,0)",
       "qty_value": 1,
-      "length (ft)": 3.5182,
+      "length (ft)": 3.7233,
       "width (ft)": 0.3281,
-      "Params": "d1=3.52",
+      "Params": "d1=3.72",
       "Preview": ""
     },
     {
-      "Product": "FS-WL-SIP 4",
+      "Product": "FS-WL-SIP-4",
       "BOQ name": "4INCH WALL",
       "zone": "MALE WASHROOM",
-      "Config": "Distance1=1072.3576; Origin=(404754.605787327,-262690.236273115,0)",
+      "Config": "Distance1=1134.8576; Origin=(404754.605787327,-262690.236273115,0)",
       "qty_value": 1,
-      "length (ft)": 3.5182,
+      "length (ft)": 3.7233,
       "width (ft)": 0.3281,
-      "Params": "d1=3.52",
+      "Params": "d1=3.72",
       "Preview": ""
     },
     {
-      "Product": "FS-WL-SIP 6",
+      "Product": "FS-WL-SIP-6",
       "BOQ name": "6 INCH SIPOREX WALL",
       "zone": "MALE WASHROOM",
       "Config": "Distance1=906.9862; Origin=(404783.543374414,-262361.370662136,0)",
@@ -497,7 +464,7 @@
       "Preview": ""
     },
     {
-      "Product": "FS-WL-SIP 6",
+      "Product": "FS-WL-SIP-6",
       "BOQ name": "6 INCH SIPOREX WALL",
       "zone": "misc",
       "Config": "Distance1=906.9862; Origin=(404783.543374414,-262361.370662136,0)",
@@ -508,7 +475,7 @@
       "Preview": ""
     },
     {
-      "Product": "FS-WL-SIP 6",
+      "Product": "FS-WL-SIP-6",
       "BOQ name": "6 INCH SIPOREX WALL L BLOCK",
       "zone": "FEMALE WASHROOM",
       "Config": "L-1=2384.3341; L-2=2200.774; Origin=(105332.413123428,74198.2374834918,0)",
@@ -519,13 +486,24 @@
       "Preview": ""
     },
     {
-      "Product": "FS-WL-SIP 6",
+      "Product": "FS-WL-SIP-6",
       "BOQ name": "6 INCH SIPOREX WALL L BLOCK",
       "zone": "MALE WASHROOM",
       "Config": "L-1=2384.3341; L-2=2200.774; Origin=(105332.413123428,74198.2374834918,0)",
       "qty_value": 1,
       "length (ft)": 7.937,
       "width (ft)": 6.3372,
+      "Params": "",
+      "Preview": ""
+    },
+    {
+      "Product": "FS-WL-SIP-EX",
+      "BOQ name": "EXISTING WALL",
+      "zone": "misc",
+      "Config": "D-2=152; L-1=2497.5542; Origin=(95138.4336079648,76490.042732825,0); Position1 X=94538.4336; Position1 Y=76542.0427",
+      "qty_value": 10,
+      "length (ft)": 8.1941,
+      "width (ft)": 0.4987,
       "Params": "",
       "Preview": ""
     },

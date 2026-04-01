@@ -19,7 +19,7 @@ Mappings:
 - vis_export_all.json            -> export_all tab
 - vis_export_sheet_like.json     -> vis_export_sheet_like tab
 - vis_export_planner_dims.json   -> PLANNER tab
-- vis_export_layers.json         -> LAYER tab
+- vis_export_layers_sheet_like.json -> LAYER tab
 """
 
 import json
@@ -33,7 +33,7 @@ FILES = {
     "vis_export_all.json": "export_all",
     "vis_export_sheet_like.json": "vis_export_sheet_like",
     "vis_export_planner_dims.json": "PLANNER",
-    "vis_export_layers_sheet_like.json": "LAYER",  # ✅ your request
+    "vis_export_layers_sheet_like.json": "LAYER",
 }
 
 GS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwTTg9SzLo70ICTbpr2a5zNw84CG6kylNulVONenq4BADQIuCq7GuJqtDq7H_QfV0pe/exec"
@@ -64,9 +64,6 @@ def flatten_items_json(data):
     Handles a wide set of export schemas, including layer exports.
     """
 
-    # -------------------------
-    # E) top-level list
-    # -------------------------
     if isinstance(data, list):
         records = [x for x in data if isinstance(x, dict)]
         if not records:
@@ -78,23 +75,15 @@ def flatten_items_json(data):
     if not isinstance(data, dict):
         return [], []
 
-    # -------------------------
-    # F) headers + rows already
-    # -------------------------
     if isinstance(data.get("headers"), list) and isinstance(data.get("rows"), list):
         headers = data["headers"]
         rows = data["rows"]
-        # rows might be list-of-lists already
         if rows and isinstance(rows[0], list):
             return headers, rows
-        # or list-of-dicts
         if rows and isinstance(rows[0], dict):
             return headers, [[r.get(h, "") for h in headers] for r in rows if isinstance(r, dict)]
         return headers, []
 
-    # -----------------------------
-    # A/B) Standard items[] schema
-    # -----------------------------
     items = data.get("items", [])
     if isinstance(items, list) and items:
         headers = data.get("headers")
@@ -109,9 +98,6 @@ def flatten_items_json(data):
         rows = [[r.get(h, "") for h in headers] for r in records]
         return headers, rows
 
-    # -----------------------------
-    # D) Layer export: layers[]
-    # -----------------------------
     layers = data.get("layers", [])
     if isinstance(layers, list) and layers:
         records = [x for x in layers if isinstance(x, dict)]
@@ -121,9 +107,6 @@ def flatten_items_json(data):
         rows = [[r.get(h, "") for h in headers] for r in records]
         return headers, rows
 
-    # --------------------------------
-    # C) Planner dims zones[] schema
-    # --------------------------------
     zones = data.get("zones", [])
     if isinstance(zones, list) and zones:
         dwg = data.get("dwg", "")
@@ -149,6 +132,7 @@ def flatten_items_json(data):
             "width_ft",
             "height_ft",
             "area_sqft",
+            "perimeter",
             "dwg",
             "plannerLayer",
             "overall_width_ft",
@@ -167,10 +151,6 @@ def flatten_items_json(data):
         rows = [[r.get(h, "") for h in headers] for r in enriched]
         return headers, rows
 
-    # ----------------------------------------
-    # G) dict summary: {"Layer": qty, ...}
-    # ----------------------------------------
-    # If it's a "simple" dict (values not dict/list), flatten key-value pairs.
     simple = True
     for v in data.values():
         if isinstance(v, (dict, list)):
@@ -181,19 +161,13 @@ def flatten_items_json(data):
         rows = [[k, data.get(k, "")] for k in data.keys()]
         return headers, rows
 
-    # nothing usable
     return [], []
 
 
 def healthcheck():
-    """
-    Quick reachability check. Many Apps Scripts will return HTML;
-    we just confirm it's reachable and show status.
-    """
     try:
         r = requests.get(GS_WEBAPP_URL, timeout=30)
         print(f"🌐 WebApp reachability: {r.status_code}")
-        # show a small snippet for debugging (avoid huge HTML)
         snip = (r.text or "")[:200].replace("\n", " ")
         print(f"🌐 WebApp response snippet: {snip!r}")
     except Exception as e:
@@ -218,15 +192,12 @@ def upload(tab_name: str, headers, rows):
 
     r = requests.post(GS_WEBAPP_URL, json=payload, timeout=TIMEOUT)
 
-    # Always show server response when not OK
     if not r.ok:
         raise RuntimeError(
             f"Upload failed ({tab_name}): HTTP {r.status_code}\n"
             f"Response:\n{r.text}"
         )
 
-    # Some webapps reply 200 but with JSON indicating failure.
-    # Try parsing JSON if possible.
     ctype = (r.headers.get("content-type") or "").lower()
     if "application/json" in ctype:
         try:
@@ -234,12 +205,10 @@ def upload(tab_name: str, headers, rows):
         except Exception:
             resp = None
 
-        # If your GAS returns {ok:false, error:"..."} or similar, catch it.
         if isinstance(resp, dict):
             if resp.get("ok") is False or resp.get("success") is False:
                 raise RuntimeError(f"Upload reported failure ({tab_name}): {resp}")
     else:
-        # If it's not JSON, still useful to log a short snippet
         snip = (r.text or "")[:250].replace("\n", " ")
         print(f"ℹ️ Upload response (non-JSON) snippet: {snip!r}")
 
