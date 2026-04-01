@@ -6,34 +6,34 @@
       "layer": "FLR-ANTI SKID TILE",
       "zone": "FEMALE WASHROOM",
       "remarks": "CLOSED (rectangle): length/width + perimeter & area",
-      "length (ft)": 12.196,
-      "width (ft)": 3.4724,
-      "perimeter": 31.3366,
-      "area (ft2)": 42.3487
+      "length (ft)": 309.7774,
+      "width (ft)": 88.1978,
+      "perimeter": 795.9503,
+      "area (ft2)": 27321.6712
     },
     {
       "layer": "FLR-ANTI SKID TILE",
       "zone": "MALE WASHROOM",
       "remarks": "CLOSED (rectangle): length/width + perimeter & area",
-      "length (ft)": 14.3709,
-      "width (ft)": 5.4439,
-      "perimeter": 39.6296,
-      "area (ft2)": 78.2334
+      "length (ft)": 365.0211,
+      "width (ft)": 138.2744,
+      "perimeter": 1006.591,
+      "area (ft2)": 50473.0758
     },
     {
       "layer": "FS- CLMN-EX",
       "zone": "misc",
       "remarks": "CLOSED (rectangle): length/width + perimeter & area",
-      "length (ft)": 5.5791,
-      "width (ft)": 2.6254,
-      "perimeter": 16.409,
-      "area (ft2)": 14.6475
+      "length (ft)": 141.708,
+      "width (ft)": 66.6861,
+      "perimeter": 416.7884,
+      "area (ft2)": 9449.9625
     },
     {
       "layer": "FS- CLMN-EX",
       "zone": "misc",
       "remarks": "OPEN length only",
-      "length (ft)": 49.227,
+      "length (ft)": 1250.3651,
       "width (ft)": 0,
       "perimeter": 0,
       "area (ft2)": 0
@@ -42,7 +42,7 @@
       "layer": "FS- CS PROFILE LT",
       "zone": "ENCLOSED CABIN",
       "remarks": "OPEN length only",
-      "length (ft)": 25.1682,
+      "length (ft)": 639.2731,
       "width (ft)": 0,
       "perimeter": 0,
       "area (ft2)": 0
@@ -51,16 +51,16 @@
       "layer": "FS- CS PROFILE LT",
       "zone": "MEETING ROOM 8 PAX",
       "remarks": "CLOSED (rectangle): length/width + perimeter & area",
-      "length (ft)": 12.4348,
-      "width (ft)": 7.6693,
-      "perimeter": 40.2082,
-      "area (ft2)": 95.3663
+      "length (ft)": 315.8452,
+      "width (ft)": 194.7995,
+      "perimeter": 1021.2894,
+      "area (ft2)": 61526.4949
     },
     {
       "layer": "FS- CS PROFILE LT",
       "zone": "WORKHALL",
       "remarks": "OPEN length only",
-      "length (ft)": 73.0183,
+      "length (ft)": 1854.6658,
       "width (ft)": 0,
       "perimeter": 0,
       "area (ft2)": 0
@@ -69,7 +69,7 @@
       "layer": "FS-BLD-RLR",
       "zone": "misc",
       "remarks": "OPEN length only",
-      "length (ft)": 26.7366,
+      "length (ft)": 679.1109,
       "width (ft)": 0,
       "perimeter": 0,
       "area (ft2)": 0
@@ -78,52 +78,52 @@
       "layer": "FS-CL-GYP",
       "zone": "ENCLOSED CABIN",
       "remarks": "CLOSED (rectangle): length/width + perimeter & area",
-      "length (ft)": 19.5292,
-      "width (ft)": 10.1282,
-      "perimeter": 59.3148,
-      "area (ft2)": 197.7952
+      "length (ft)": 496.0424,
+      "width (ft)": 257.2553,
+      "perimeter": 1506.5953,
+      "area (ft2)": 127609.5193
     },
     {
       "layer": "FS-CL-GYP",
       "zone": "MEETING ROOM 8 PAX",
       "remarks": "CLOSED (rectangle): length/width + perimeter & area",
-      "length (ft)": 14.4034,
-      "width (ft)": 9.6378,
-      "perimeter": 48.0823,
-      "area (ft2)": 138.8163
+      "length (ft)": 365.8452,
+      "width (ft)": 244.7994,
+      "perimeter": 1221.2894,
+      "area (ft2)": 89558.7096
     },
     {
       "layer": "FS-CL-GYP",
       "zone": "PANTRY",
       "remarks": "CLOSED (rectangle): length/width + perimeter & area",
-      "length (ft)": 14.0536,
-      "width (ft)": 12.424,
-      "perimeter": 52.9551,
-      "area (ft2)": 174.6016
+      "length (ft)": 356.9605,
+      "width (ft)": 315.5699,
+      "perimeter": 1345.0608,
+      "area (ft2)": 112645.9913
     },
     {
       "layer": "FS-CL-MTL",
       "zone": "RECEPTION",
       "remarks": "CLOSED (rectangle): length/width + perimeter & area",
-      "length (ft)": 12.8946,
-      "width (ft)": 3.4961,
-      "perimeter": 32.7814,
-      "area (ft2)": 45.0811
+      "length (ft)": 327.5225,
+      "width (ft)": 88.8015,
+      "perimeter": 832.6481,
+      "area (ft2)": 29084.4904
     },
     {
       "layer": "FS-COVE LT",
       "zone": "ENCLOSED CABIN",
       "remarks": "CLOSED (rectangle): length/width + perimeter & area",
-      "length (ft)": 18.545,
-      "width (ft)": 9.2684,
-      "perimeter": 55.6268,
-      "area (ft2)": 171.8829
+      "length (ft)": 471.0424,
+      "width (ft)": 235.4183,
+      "perimeter": 1412.9213,
+      "area (ft2)": 110891.9809
     },
     {
       "layer": "FS-FIN-DSN-ACP",
       "zone": "MEETING ROOM 8 PAX",
       "remarks": "OPEN length only",
-      "length (ft)": 9.6341,
+      "length (ft)": 244.7065,
       "width (ft)": 0,
       "perimeter": 0,
       "area (ft2)": 0
@@ -132,7 +132,7 @@
       "layer": "FS-FIN-DSN-ACP",
       "zone": "misc",
       "remarks": "OPEN length only",
-      "length (ft)": 6.1946,
+      "length (ft)": 157.3422,
       "width (ft)": 0,
       "perimeter": 0,
       "area (ft2)": 0
@@ -141,7 +141,7 @@
       "layer": "FS-FIN-DSN-FLT",
       "zone": "MEETING ROOM 8 PAX",
       "remarks": "OPEN length only",
-      "length (ft)": 9.6378,
+      "length (ft)": 244.7995,
       "width (ft)": 0,
       "perimeter": 0,
       "area (ft2)": 0
@@ -150,7 +150,7 @@
       "layer": "FS-FIN-DSN-LAM",
       "zone": "PANTRY",
       "remarks": "OPEN length only",
-      "length (ft)": 12.3004,
+      "length (ft)": 312.4306,
       "width (ft)": 0,
       "perimeter": 0,
       "area (ft2)": 0
@@ -159,7 +159,7 @@
       "layer": "FS-FIN-DSN-LAM",
       "zone": "RECEPTION",
       "remarks": "OPEN length only",
-      "length (ft)": 13.3613,
+      "length (ft)": 339.3773,
       "width (ft)": 0,
       "perimeter": 0,
       "area (ft2)": 0
@@ -168,7 +168,7 @@
       "layer": "FS-FIN-GL-CLD",
       "zone": "misc",
       "remarks": "OPEN length only",
-      "length (ft)": 38.1716,
+      "length (ft)": 969.5581,
       "width (ft)": 0,
       "perimeter": 0,
       "area (ft2)": 0
@@ -177,7 +177,7 @@
       "layer": "FS-FIN-GL-CLD",
       "zone": "WORKHALL",
       "remarks": "OPEN length only",
-      "length (ft)": 19.5292,
+      "length (ft)": 496.0424,
       "width (ft)": 0,
       "perimeter": 0,
       "area (ft2)": 0
@@ -186,7 +186,7 @@
       "layer": "FS-FIN-WLP-CUS",
       "zone": "misc",
       "remarks": "OPEN length only",
-      "length (ft)": 30.8483,
+      "length (ft)": 783.5475,
       "width (ft)": 0,
       "perimeter": 0,
       "area (ft2)": 0
@@ -195,7 +195,7 @@
       "layer": "FS-FIN-WLP-CUS",
       "zone": "RECEPTION",
       "remarks": "OPEN length only",
-      "length (ft)": 4.2876,
+      "length (ft)": 108.906,
       "width (ft)": 0,
       "perimeter": 0,
       "area (ft2)": 0
@@ -204,7 +204,7 @@
       "layer": "FS-FIN-WLP-CUS",
       "zone": "WORKHALL",
       "remarks": "OPEN length only",
-      "length (ft)": 20.7456,
+      "length (ft)": 526.9395,
       "width (ft)": 0,
       "perimeter": 0,
       "area (ft2)": 0
@@ -213,7 +213,7 @@
       "layer": "FS-FIN-WLP-RDY",
       "zone": "PANTRY",
       "remarks": "OPEN length only",
-      "length (ft)": 10.4601,
+      "length (ft)": 265.6861,
       "width (ft)": 0,
       "perimeter": 0,
       "area (ft2)": 0
@@ -222,16 +222,16 @@
       "layer": "FS-FLR-ANTSK",
       "zone": "FEMALE WASHROOM",
       "remarks": "CLOSED (rectangle): length/width + perimeter & area",
-      "length (ft)": 11.3406,
-      "width (ft)": 3.7479,
-      "perimeter": 30.1769,
-      "area (ft2)": 42.5035
+      "length (ft)": 288.05,
+      "width (ft)": 95.1972,
+      "perimeter": 766.4944,
+      "area (ft2)": 27421.5553
     },
     {
       "layer": "FS-FLR-ANTSK",
       "zone": "FEMALE WASHROOM",
       "remarks": "OPEN length only",
-      "length (ft)": 15.344,
+      "length (ft)": 389.7375,
       "width (ft)": 0,
       "perimeter": 0,
       "area (ft2)": 0
@@ -240,34 +240,34 @@
       "layer": "FS-FLR-ANTSK",
       "zone": "MALE WASHROOM",
       "remarks": "CLOSED (rectangle): length/width + perimeter & area",
-      "length (ft)": 14.8922,
-      "width (ft)": 5.3189,
-      "perimeter": 40.4221,
-      "area (ft2)": 79.21
+      "length (ft)": 378.2608,
+      "width (ft)": 135.1002,
+      "perimeter": 1026.722,
+      "area (ft2)": 51103.0978
     },
     {
       "layer": "FS-FLR-CNY",
       "zone": "ENCLOSED CABIN",
       "remarks": "CLOSED (rectangle): length/width + perimeter & area",
-      "length (ft)": 19.5256,
-      "width (ft)": 10.2527,
-      "perimeter": 59.5565,
-      "area (ft2)": 200.1894
+      "length (ft)": 495.9494,
+      "width (ft)": 260.4181,
+      "perimeter": 1512.735,
+      "area (ft2)": 129154.1908
     },
     {
       "layer": "FS-FLR-CNY",
       "zone": "MEETING ROOM 8 PAX",
       "remarks": "CLOSED (rectangle): length/width + perimeter & area",
-      "length (ft)": 14.4034,
-      "width (ft)": 9.6378,
-      "perimeter": 48.0823,
-      "area (ft2)": 138.8163
+      "length (ft)": 365.8452,
+      "width (ft)": 244.7994,
+      "perimeter": 1221.2893,
+      "area (ft2)": 89558.7052
     },
     {
       "layer": "FS-FLR-CNY",
       "zone": "PANTRY",
       "remarks": "OPEN length only",
-      "length (ft)": 33.5374,
+      "length (ft)": 851.8501,
       "width (ft)": 0,
       "perimeter": 0,
       "area (ft2)": 0
@@ -276,7 +276,7 @@
       "layer": "FS-FLR-CNY",
       "zone": "RECEPTION",
       "remarks": "OPEN length only",
-      "length (ft)": 34.1967,
+      "length (ft)": 868.5968,
       "width (ft)": 0,
       "perimeter": 0,
       "area (ft2)": 0
@@ -285,7 +285,7 @@
       "layer": "FS-FLR-CPP",
       "zone": "MEETING ROOM 8 PAX",
       "remarks": "OPEN length only",
-      "length (ft)": 37.9048,
+      "length (ft)": 962.7822,
       "width (ft)": 0,
       "perimeter": 0,
       "area (ft2)": 0
@@ -294,7 +294,7 @@
       "layer": "FS-FLR-CPP",
       "zone": "misc",
       "remarks": "OPEN length only",
-      "length (ft)": 33.4681,
+      "length (ft)": 850.0905,
       "width (ft)": 0,
       "perimeter": 0,
       "area (ft2)": 0
@@ -303,16 +303,16 @@
       "layer": "FS-FLR-CPP",
       "zone": "WORKHALL",
       "remarks": "CLOSED (rectangle): length/width + perimeter & area",
-      "length (ft)": 128.236,
-      "width (ft)": 14.1566,
-      "perimeter": 284.7852,
-      "area (ft2)": 1815.3813
+      "length (ft)": 3257.1952,
+      "width (ft)": 359.5767,
+      "perimeter": 7233.5437,
+      "area (ft2)": 1171211.4035
     },
     {
       "layer": "FS-FLR-CPP",
       "zone": "WORKHALL",
       "remarks": "OPEN length only",
-      "length (ft)": 130.6622,
+      "length (ft)": 3318.8211,
       "width (ft)": 0,
       "perimeter": 0,
       "area (ft2)": 0
@@ -321,16 +321,16 @@
       "layer": "FS-FLR-LVT",
       "zone": "MEETING ROOM 8 PAX",
       "remarks": "CLOSED (rectangle): length/width + perimeter & area",
-      "length (ft)": 31.1879,
-      "width (ft)": 3.3825,
-      "perimeter": 69.1409,
-      "area (ft2)": 105.4945
+      "length (ft)": 792.1725,
+      "width (ft)": 85.9167,
+      "perimeter": 1756.1783,
+      "area (ft2)": 68060.8509
     },
     {
       "layer": "FS-FLR-MDS 75",
       "zone": "ENCLOSED CABIN",
       "remarks": "OPEN length only",
-      "length (ft)": 33.4477,
+      "length (ft)": 849.5708,
       "width (ft)": 0,
       "perimeter": 0,
       "area (ft2)": 0
@@ -339,7 +339,7 @@
       "layer": "FS-FLR-MDS 75",
       "zone": "FEMALE WASHROOM",
       "remarks": "OPEN length only",
-      "length (ft)": 3.4217,
+      "length (ft)": 86.9121,
       "width (ft)": 0,
       "perimeter": 0,
       "area (ft2)": 0
@@ -348,7 +348,7 @@
       "layer": "FS-FLR-MDS 75",
       "zone": "MEETING ROOM 8 PAX",
       "remarks": "OPEN length only",
-      "length (ft)": 21.4901,
+      "length (ft)": 545.848,
       "width (ft)": 0,
       "perimeter": 0,
       "area (ft2)": 0
@@ -357,7 +357,7 @@
       "layer": "FS-FLR-MDS 75",
       "zone": "misc",
       "remarks": "OPEN length only",
-      "length (ft)": 109.2335,
+      "length (ft)": 2774.5311,
       "width (ft)": 0,
       "perimeter": 0,
       "area (ft2)": 0
@@ -366,7 +366,7 @@
       "layer": "FS-FLR-MDS 75",
       "zone": "PANTRY",
       "remarks": "OPEN length only",
-      "length (ft)": 21.1144,
+      "length (ft)": 536.307,
       "width (ft)": 0,
       "perimeter": 0,
       "area (ft2)": 0
@@ -375,7 +375,7 @@
       "layer": "FS-FLR-MDS 75",
       "zone": "WORKHALL",
       "remarks": "OPEN length only",
-      "length (ft)": 4.547,
+      "length (ft)": 115.4932,
       "width (ft)": 0,
       "perimeter": 0,
       "area (ft2)": 0
@@ -384,7 +384,7 @@
       "layer": "FS-FLR-TP C",
       "zone": "WORKHALL",
       "remarks": "OPEN length only",
-      "length (ft)": 209.0179,
+      "length (ft)": 5309.0559,
       "width (ft)": 0,
       "perimeter": 0,
       "area (ft2)": 0
@@ -393,34 +393,34 @@
       "layer": "FS-FLR-VIT",
       "zone": "RECEPTION",
       "remarks": "CLOSED (rectangle): length/width + perimeter & area",
-      "length (ft)": 18.7709,
-      "width (ft)": 11.7118,
-      "perimeter": 60.9654,
-      "area (ft2)": 219.8416
+      "length (ft)": 476.7803,
+      "width (ft)": 297.4808,
+      "perimeter": 1548.5222,
+      "area (ft2)": 141832.9787
     },
     {
       "layer": "FS-FN-D",
       "zone": "FEMALE WASHROOM",
       "remarks": "CLOSED (rectangle): length/width + perimeter & area",
-      "length (ft)": 12.196,
-      "width (ft)": 3.4724,
-      "perimeter": 31.3366,
-      "area (ft2)": 42.3487
+      "length (ft)": 309.7774,
+      "width (ft)": 88.1978,
+      "perimeter": 795.9503,
+      "area (ft2)": 27321.6712
     },
     {
       "layer": "FS-FN-D",
       "zone": "MALE WASHROOM",
       "remarks": "CLOSED (rectangle): length/width + perimeter & area",
-      "length (ft)": 14.3709,
-      "width (ft)": 5.4439,
-      "perimeter": 39.6296,
-      "area (ft2)": 78.2334
+      "length (ft)": 365.0211,
+      "width (ft)": 138.2744,
+      "perimeter": 1006.591,
+      "area (ft2)": 50473.0758
     },
     {
       "layer": "FS-FN-D",
       "zone": "misc",
       "remarks": "OPEN length only",
-      "length (ft)": 8.3634,
+      "length (ft)": 212.4306,
       "width (ft)": 0,
       "perimeter": 0,
       "area (ft2)": 0
@@ -429,52 +429,52 @@
       "layer": "FS-FUR-CSTM",
       "zone": "misc",
       "remarks": "CLOSED (rectangle): length/width + perimeter & area",
-      "length (ft)": 4.7586,
-      "width (ft)": 1.0646,
-      "perimeter": 11.6464,
-      "area (ft2)": 5.0659
+      "length (ft)": 120.8686,
+      "width (ft)": 27.0404,
+      "perimeter": 295.8181,
+      "area (ft2)": 3268.338
     },
     {
       "layer": "FS-FUR-CSTM",
       "zone": "WORKHALL",
       "remarks": "CLOSED (rectangle): length/width + perimeter & area",
-      "length (ft)": 1.9685,
-      "width (ft)": 0.6117,
-      "perimeter": 5.1604,
-      "area (ft2)": 1.2041
+      "length (ft)": 50,
+      "width (ft)": 15.5373,
+      "perimeter": 131.0746,
+      "area (ft2)": 776.8658
     },
     {
       "layer": "FS-PLT-GR-600",
       "zone": "FEMALE WASHROOM",
       "remarks": "CLOSED (rectangle): length/width + perimeter & area",
-      "length (ft)": 5.2519,
-      "width (ft)": 1.8157,
-      "perimeter": 14.1351,
-      "area (ft2)": 9.5358
+      "length (ft)": 133.3978,
+      "width (ft)": 46.1185,
+      "perimeter": 359.0327,
+      "area (ft2)": 6152.1112
     },
     {
       "layer": "FS-PLT-GR-600",
       "zone": "MALE WASHROOM",
       "remarks": "CLOSED (rectangle): length/width + perimeter & area",
-      "length (ft)": 4.6658,
-      "width (ft)": 1.9685,
-      "perimeter": 13.2686,
-      "area (ft2)": 9.1846
+      "length (ft)": 118.511,
+      "width (ft)": 50,
+      "perimeter": 337.022,
+      "area (ft2)": 5925.5499
     },
     {
       "layer": "FS-PLT-GR-600",
       "zone": "PANTRY",
       "remarks": "CLOSED (rectangle): length/width + perimeter & area",
-      "length (ft)": 6.1167,
-      "width (ft)": 1.9685,
-      "perimeter": 16.1705,
-      "area (ft2)": 12.0408
+      "length (ft)": 155.3652,
+      "width (ft)": 50,
+      "perimeter": 410.7305,
+      "area (ft2)": 7768.2621
     },
     {
       "layer": "FS-PLY-SUP",
       "zone": "misc",
       "remarks": "OPEN length only",
-      "length (ft)": 9.6378,
+      "length (ft)": 244.7996,
       "width (ft)": 0,
       "perimeter": 0,
       "area (ft2)": 0
@@ -483,7 +483,7 @@
       "layer": "FS-PNL-FIN- ACST",
       "zone": "MEETING ROOM 8 PAX",
       "remarks": "OPEN length only",
-      "length (ft)": 9.6378,
+      "length (ft)": 244.7996,
       "width (ft)": 0,
       "perimeter": 0,
       "area (ft2)": 0
@@ -492,7 +492,7 @@
       "layer": "FS-PNL-FIN- ACST",
       "zone": "misc",
       "remarks": "OPEN length only",
-      "length (ft)": 9.6378,
+      "length (ft)": 244.7994,
       "width (ft)": 0,
       "perimeter": 0,
       "area (ft2)": 0
@@ -501,7 +501,7 @@
       "layer": "FS-PNL-FIN- ACST",
       "zone": "RECEPTION",
       "remarks": "OPEN length only",
-      "length (ft)": 13.3596,
+      "length (ft)": 339.3334,
       "width (ft)": 0,
       "perimeter": 0,
       "area (ft2)": 0
@@ -510,7 +510,7 @@
       "layer": "FS-PT-PLY75",
       "zone": "misc",
       "remarks": "OPEN length only",
-      "length (ft)": 0.9784,
+      "length (ft)": 24.8505,
       "width (ft)": 0,
       "perimeter": 0,
       "area (ft2)": 0
@@ -519,7 +519,7 @@
       "layer": "FS-TL SKRT",
       "zone": "MALE WASHROOM",
       "remarks": "OPEN length only",
-      "length (ft)": 37.1837,
+      "length (ft)": 944.4668,
       "width (ft)": 0,
       "perimeter": 0,
       "area (ft2)": 0

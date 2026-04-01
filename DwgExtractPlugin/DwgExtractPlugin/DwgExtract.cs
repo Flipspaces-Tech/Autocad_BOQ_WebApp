@@ -9,9 +9,9 @@
 //   5) vis_export_planner_dims.json      (UPDATED)  <-- planner dims + perimeter
 //   6) vis_export_layers_sheet_like.json (NEW)   <-- NON-BLOCK entities aggregated by (zone, layer)
 //
-// ✅ NEW RULE (your request):
-//   - Any zone == "" OR "Unmarked Area"  -> "misc"
-//   - Applies to BOTH sheet_like + layers outputs
+// ✅ FIXED: GetBlockSizeFeet now uses block reference extents
+//    This calculates accurate length/width for EACH placed instance
+//    Accounts for rotation, scale, and position of each block
 
 using System;
 using System.Collections.Generic;
@@ -1482,57 +1482,44 @@ namespace DwgExtractPlugin
             }
         }
 
-        private static void GetBlockSizeFeet(Transaction tr, BlockReference br, double unitToFt, out double lengthFt, out double widthFt)
+        // ✅ CORRECTED GetBlockSizeFeet METHOD
+        // This now gets the ACTUAL placed block instance dimensions
+        private static void GetBlockSizeFeet(Transaction tr, BlockReference br, double unitToFt,
+            out double lengthFt, out double widthFt)
         {
             lengthFt = 0;
             widthFt = 0;
 
             try
             {
-                ObjectId evalBtrId = br.BlockTableRecord;
-                if (evalBtrId.IsNull) return;
+                // ✅ KEY FIX: Use TryGetGeometricExtents(br) 
+                // This gets the ACTUAL placed block with its rotation/position/scale
+                // NOT the block definition!
+                Extents3d? extents = TryGetGeometricExtents(br);
 
-                var evalBtr = (BlockTableRecord)tr.GetObject(evalBtrId, OpenMode.ForRead);
-                if (evalBtr == null) return;
+                if (extents == null) return;
 
-                bool has = false;
-                Extents3d ext = new Extents3d();
+                var ext = extents.Value;
 
-                foreach (ObjectId eid in evalBtr)
+                // Calculate actual width and height of THIS specific placed block instance
+                double actualWidth = Math.Abs(ext.MaxPoint.X - ext.MinPoint.X);
+                double actualHeight = Math.Abs(ext.MaxPoint.Y - ext.MinPoint.Y);
+
+                // Convert to feet
+                actualWidth *= unitToFt;
+                actualHeight *= unitToFt;
+
+                // Assign length (larger) and width (smaller)
+                if (actualWidth >= actualHeight)
                 {
-                    Entity ent = tr.GetObject(eid, OpenMode.ForRead) as Entity;
-                    if (ent == null) continue;
-
-                    try
-                    {
-                        Extents3d eext = ent.GeometricExtents;
-                        if (!has) { ext = eext; has = true; }
-                        else ext.AddExtents(eext);
-                    }
-                    catch { }
+                    lengthFt = actualWidth;
+                    widthFt = actualHeight;
                 }
-
-                if (!has) return;
-
-                double dx = Math.Abs(ext.MaxPoint.X - ext.MinPoint.X);
-                double dy = Math.Abs(ext.MaxPoint.Y - ext.MinPoint.Y);
-
-                double sx = 1.0, sy = 1.0;
-                try
+                else
                 {
-                    sx = Math.Abs(br.ScaleFactors.X);
-                    sy = Math.Abs(br.ScaleFactors.Y);
+                    lengthFt = actualHeight;
+                    widthFt = actualWidth;
                 }
-                catch { }
-
-                dx *= sx;
-                dy *= sy;
-
-                dx *= unitToFt;
-                dy *= unitToFt;
-
-                if (dx >= dy) { lengthFt = dx; widthFt = dy; }
-                else { lengthFt = dy; widthFt = dx; }
             }
             catch
             {
