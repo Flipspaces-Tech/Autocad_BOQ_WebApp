@@ -7,6 +7,11 @@
  * 3) Sync runs on that new copied spreadsheet
  * 4) Popup shows running state, then success + clickable link
  * 5) New copy ID is stored in Script Properties for downstream scripts
+ *
+ * EXTRA MERGE LOGIC:
+ * After split rows are created, all columns are vertically merged
+ * EXCEPT:
+ *   LOCATION, MEASUREMENT, HEIGHT, QTY
  **************************************************/
 
 const SHEETS = SpreadsheetApp;
@@ -19,9 +24,17 @@ const BOQ_SYNC = {
   MAP_COL_TARGETED: 2,
   MAP_COL_GENERATED: 4,
   MAP_COL_BLOCKNAME: 6,
+  MAP_COL_GENERATED_BLOCK: 5,    // ✅ Column E: Generated-Block (check FIRST)
+  MAP_COL_MEASURE: 7, // put the correct column number here
+
+
 
   // Export spreadsheet
   EXPORT_SS_ID: "12AsC0b7_U4dxhfxEZwtrwOXXALAnEEkQm5N8tg_RByM",
+
+  // SHEET_WHITELIST: ["Flooring", "Ceiling"],
+  SHEET_WHITELIST: null,
+  // SHEET_WHITELIST: ["Civil"],
 
   // Measurement source tab
   EXPORT_MEASURE_TAB: "LAYER",
@@ -31,15 +44,21 @@ const BOQ_SYNC = {
   LAYER_HDR_PERIM: "perimeter",
   LAYER_HDR_LENGTH: "length (ft)",
 
+  VIS_HDR_LENGTH: "length (ft)",
+  VIS_HDR_ZONE: "zone",
+  VIS_HDR_PRODUCT: "product",
+  VIS_HDR_BOQ: "boq name",
+  VIS_HDR_QTY: "qty_value",
+
   // QTY source tab
   EXPORT_QTY_TAB: "vis_export_sheet_like",
   QTY_HDR_PRODUCT_PATTERNS: ["product"],
   QTY_HDR_BOQNAME_PATTERNS: ["boq name", "boq_name", "name"],
   QTY_HDR_ZONE_PATTERNS: ["zone", "location"],
-  QTY_HDR_QTYVALUE_PATTERNS: ["qty_value", "qty value", "qty", "quantity"],
+  QTY_HDR_QTYVALUE_PATTERNS: ["qty_value", "qty value", "qty", "quantity","qty_value"],
 
   // Master template spreadsheet
-  MASTER_TEMPLATE_SS_ID: "1axPqIS-Ls5EGH3WWXQjp8sYOecUhxwaDQUTgHmKPosE",//12sJ3s0W8QkLXAwUKEJhPD-ydmQPCCHsv7sau3cOQszY
+  MASTER_TEMPLATE_SS_ID: "1rFikkFgJ84wl9Mqft1WG2UUT2PpqQK8se0aMNsKPG70",
   MASTER_START_TAB: "Civil",
 
   // Header detection in master
@@ -49,7 +68,9 @@ const BOQ_SYNC = {
   MASTER_HDR_SCOPE: ["scope of work"],
   MASTER_HDR_LOCATION: ["location"],
   MASTER_HDR_MEASUREMENT: ["measurement", "qty measured", "measured"],
+  MASTER_HDR_HEIGHT: ["height"],
   MASTER_HDR_QTY: ["qty", "quantity"],
+  MASTER_HDR_TOTAL_QTY: ["total qty", "total quantity"],
   MASTER_HDR_SRNO: ["sr. no.", "sr no", "sr.no", "sr"],
 
   SKIP_WHEN_BOTH_ZERO: true,
@@ -65,8 +86,8 @@ const BOQ_SYNC = {
 
 function onOpen() {
   SHEETS.getUi()
-    .createMenu("Vizdom Sync")
-    .addItem("Sync BOQ-LAYER → NEW MASTER COPY", "launchSyncBoqLayerToMasterUi")
+    .createMenu("AUTO QA")
+    .addItem("BOQ layer to master copy", "launchSyncBoqLayerToMasterUi")
     .addToUi();
 }
 
@@ -190,7 +211,7 @@ function launchSyncBoqLayerToMasterUi() {
       </head>
       <body>
         <div class="wrap">
-          <div class="title">Vizdom Sync</div>
+          <div class="title">AUTO QA in Progress</div>
 
           <div id="runningView">
             <div class="row">
@@ -294,7 +315,7 @@ function launchSyncBoqLayerToMasterUi() {
     </html>
   `).setWidth(520).setHeight(320);
 
-  SpreadsheetApp.getUi().showModelessDialog(html, "Vizdom Sync Progress");
+  SpreadsheetApp.getUi().showModelessDialog(html, "AUTO QA");
 }
 
 /* =========================================================
@@ -319,6 +340,14 @@ function syncBoqLayerToMaster() {
   const out = syncBoqLayerToMasterCore_();
   if (BOQ_SYNC.SHOW_DIALOG) {
     showReportDialog_(SHEETS.getUi(), out.report);
+  }
+}
+
+function testFloringCeilingDetection() {
+  const testSheets = ["Flooring", "Ceiling", "Civil"];
+  for (const tabName of testSheets) {
+    const isLocationSplitOnly = false;
+    Logger.log(`${tabName}: ${isLocationSplitOnly ? "✅ SPLIT" : "❌ FILL"}`);
   }
 }
 
@@ -367,11 +396,9 @@ function syncBoqLayerToMasterCore_() {
 
     const exportSS = SHEETS.openById(BOQ_SYNC.EXPORT_SS_ID);
 
-    // create fresh copy every run
     const masterCopy = createMasterCopy_();
     const masterSS = SHEETS.openById(masterCopy.id);
 
-    // save latest copy ID for downstream scripts
     PropertiesService.getScriptProperties().setProperty(
       BOQ_SYNC.LATEST_MASTER_COPY_ID_KEY,
       masterCopy.id
@@ -381,7 +408,6 @@ function syncBoqLayerToMasterCore_() {
     report.debug.masterCopyName = masterCopy.name;
     report.debug.masterCopyUrl = masterCopy.url;
 
-    // 1) Read mappings
     const mappings = readMappings_(mapSh, report);
     report.mappingsTotal = mappings.length;
 
@@ -391,7 +417,6 @@ function syncBoqLayerToMasterCore_() {
       return { report, masterCopy };
     }
 
-    // 2) Build mapping lookup by targeted
     const mappingByTarget = new Map();
     for (const m of mappings) {
       const tKey = normKey_advanced_(m.targeted);
@@ -399,13 +424,9 @@ function syncBoqLayerToMasterCore_() {
       mappingByTarget.get(tKey).push(m);
     }
 
-    // 3) Build QTY index once
     const qtyIndex = buildQtyIndex_(exportSS, report);
-
-    // 4) Measurement cache
     const measCache = new Map();
 
-    // 5) Iterate master tabs from start
     const tabs = getMasterTabsFromStart_(masterSS, BOQ_SYNC.MASTER_START_TAB);
     if (!tabs.length) throw new Error(`Start tab "${BOQ_SYNC.MASTER_START_TAB}" not found in MASTER.`);
 
@@ -413,6 +434,18 @@ function syncBoqLayerToMasterCore_() {
 
     for (const sh of tabs) {
       const tabName = sh.getName();
+
+      if (BOQ_SYNC.SHEET_WHITELIST && BOQ_SYNC.SHEET_WHITELIST.length > 0) {
+        const isInWhitelist = BOQ_SYNC.SHEET_WHITELIST.some(name =>
+          name.toLowerCase() === tabName.toLowerCase()
+        );
+        if (!isInWhitelist) {
+          report.tabsSkipped.push(`${tabName} (not in whitelist)`);
+          continue;
+        }
+      }
+
+      const isLocationSplitOnly = false;
       const lastCol = sh.getLastColumn();
       let lastRow = sh.getLastRow();
       if (lastRow < 2 || lastCol < 2) continue;
@@ -425,14 +458,16 @@ function syncBoqLayerToMasterCore_() {
 
       const locationCol = findHeaderColContains_(sh, BOQ_SYNC.MASTER_HDR_LOCATION, 20);
       const measurementCol = findHeaderColContains_(sh, BOQ_SYNC.MASTER_HDR_MEASUREMENT, 20);
+      const heightCol = findHeaderColContains_(sh, BOQ_SYNC.MASTER_HDR_HEIGHT, 20);
 
       const qtyColDetected = findHeaderColContains_(sh, BOQ_SYNC.MASTER_HDR_QTY, 20);
       const qtyCol = qtyColDetected || BOQ_SYNC.MASTER_QTY_COL_FALLBACK;
 
+      const totalQtyCol = findHeaderColContains_(sh, BOQ_SYNC.MASTER_HDR_TOTAL_QTY, 20);
       const srNoCol = findHeaderColContains_(sh, BOQ_SYNC.MASTER_HDR_SRNO, 20);
 
       report.debug.masterDetectedCols.push(
-        `${tabName}: matchCol=${matchCol}, locationCol=${locationCol}, measurementCol=${measurementCol || "null"}, qtyCol=${qtyCol} (detected=${qtyColDetected || "no"})`
+        `${tabName}: matchCol=${matchCol}, locationCol=${locationCol}, measurementCol=${measurementCol || "null"}, heightCol=${heightCol || "null"}, qtyCol=${qtyCol} (detected=${qtyColDetected || "no"}), totalQtyCol=${totalQtyCol || "null"}, srNoCol=${srNoCol || "null"}, isLocationSplitOnly=${isLocationSplitOnly}`
       );
 
       if (!locationCol || !qtyCol) {
@@ -488,7 +523,7 @@ function syncBoqLayerToMasterCore_() {
             const cacheKey = `${normKey_advanced_(m.generated)}||${normKey_advanced_(m.measure)}`;
             let breakdown = measCache.get(cacheKey);
             if (!breakdown) {
-              breakdown = computeMeasurementFromLayer_(exportSS, m.generated, m.measure);
+              breakdown = computeMeasurementFromSource_(exportSS, m);
               measCache.set(cacheKey, breakdown);
             }
 
@@ -580,37 +615,79 @@ function syncBoqLayerToMasterCore_() {
             sh.getRange(r + i, 1, 1, clearUpto).clearContent();
           }
 
-          mergeAndCenterSafe_(sh, r, matchCol, needed);
-          if (srNoCol) mergeAndCenterSafe_(sh, r, srNoCol, needed);
+          mergeNonDetailColumnsForBlock_(
+            sh,
+            r,
+            needed,
+            lastCol,
+            {
+              locationCol,
+              measurementCol,
+              heightCol,
+              qtyCol
+            }
+          );
         }
 
-        for (let i = 0; i < needed; i++) {
-          const zone = finalZones[i];
+        // ✅ decide from BOQ-LAYER Measurement column, not from template header
+const writeQtyMode = mapList.some(m => isCountMeasure_(m.measure));
 
-          sh.getRange(r + i, locationCol).setValue(zone);
+for (let i = 0; i < needed; i++) {
+  const rowNum = r + i;
+  const zone = finalZones[i];
 
-          if (measurementCol) {
-            const meas = toNumber_(zoneTotalsMeas.get(zone) || 0);
-            const mCell = sh.getRange(r + i, measurementCol);
-            mCell.setValue(Number.isFinite(meas) ? meas : 0);
-            mCell.setNumberFormat(BOQ_SYNC.NUMBER_FORMAT);
-          }
+  sh.getRange(rowNum, locationCol).setValue(zone);
 
-          const qty = toNumber_(zoneTotalsQty.get(zone) || 0);
-          const qCell = sh.getRange(r + i, qtyCol);
-          qCell.setValue(Number.isFinite(qty) ? qty : 0);
-          qCell.setNumberFormat(BOQ_SYNC.NUMBER_FORMAT);
-        }
+  if (writeQtyMode) {
+    const qty = toNumber_(zoneTotalsQty.get(zone) || 0);
+    const safeQty = Number.isFinite(qty) ? qty : 0;
+
+    if (qtyCol && !hasFormulaInCell_(sh, rowNum, qtyCol)) {
+      const qCell = sh.getRange(rowNum, qtyCol);
+      qCell.setValue(safeQty);
+      qCell.setNumberFormat(BOQ_SYNC.NUMBER_FORMAT);
+    }
+
+    // optional: keep MEASUREMENT blank for Count rows
+    if (measurementCol && !hasFormulaInCell_(sh, rowNum, measurementCol)) {
+      sh.getRange(rowNum, measurementCol).clearContent();
+    }
+
+  } else {
+    const meas = toNumber_(zoneTotalsMeas.get(zone) || 0);
+    const safeMeas = Number.isFinite(meas) ? meas : 0;
+
+    if (measurementCol && !hasFormulaInCell_(sh, rowNum, measurementCol)) {
+      const mCell = sh.getRange(rowNum, measurementCol);
+      mCell.setValue(safeMeas);
+      mCell.setNumberFormat(BOQ_SYNC.NUMBER_FORMAT);
+    }
+
+    // optional: keep QTY blank for non-Count rows
+    if (qtyCol && !hasFormulaInCell_(sh, rowNum, qtyCol)) {
+      sh.getRange(rowNum, qtyCol).clearContent();
+    }
+  }
+}
+
+writeTotalQtyIfNoFormula_(
+  sh,
+  r,
+  needed,
+  totalQtyCol,
+  qtyCol,
+  BOQ_SYNC.NUMBER_FORMAT
+);
 
         report.rowsUpdated += needed;
         r += needed;
       }
 
-      if (BOQ_SYNC.HIDE_ZERO_ROWS_AFTER_SYNC) {
-        const hideRes = hideZeroRowsInTab_(sh, matchCol, measurementCol, qtyCol);
-        report.rowsHidden += hideRes.hidden;
-        report.rowsUnhidden += hideRes.unhidden;
-      }
+      // if (BOQ_SYNC.HIDE_ZERO_ROWS_AFTER_SYNC) {
+      //   const hideRes = hideZeroRowsInTab_(sh, matchCol, measurementCol, qtyCol, locationCol, isLocationSplitOnly);
+      //   report.rowsHidden += hideRes.hidden;
+      //   report.rowsUnhidden += hideRes.unhidden;
+      // }
     }
 
     let notFoundTargets = 0;
@@ -636,7 +713,6 @@ function syncBoqLayerToMasterCore_() {
 function createMasterCopy_() {
   const templateFile = DriveApp.getFileById(BOQ_SYNC.MASTER_TEMPLATE_SS_ID);
 
-  // Read name from export spreadsheet -> PLANNER tab -> dwg column
   const exportSS = SHEETS.openById(BOQ_SYNC.EXPORT_SS_ID);
   const plannerSh = exportSS.getSheetByName("PLANNER");
 
@@ -652,7 +728,6 @@ function createMasterCopy_() {
     }
   }
 
-  // fallback if PLANNER/dwg is missing
   if (!desiredName) {
     const timestamp = Utilities.formatDate(
       new Date(),
@@ -692,25 +767,30 @@ function readMappings_(mapSh, report) {
   const out = [];
   for (let r = 1; r < grid.length; r++) {
     const targeted = String(grid[r][BOQ_SYNC.MAP_COL_TARGETED - 1] || "").trim();
-    const generated = String(grid[r][BOQ_SYNC.MAP_COL_GENERATED - 1] || "").trim();
+    
+    
+    // ✅ NEW LOGIC: Check Generated-Block (E) FIRST, then fall back to Generated (D)
+    let generated = String(grid[r][BOQ_SYNC.MAP_COL_GENERATED_BLOCK - 1] || "").trim();
+    if (!generated) {
+      generated = String(grid[r][BOQ_SYNC.MAP_COL_GENERATED - 1] || "").trim();
+    }
+    
     const blockName = String(grid[r][BOQ_SYNC.MAP_COL_BLOCKNAME - 1] || "").trim();
 
     if (!targeted) continue;
     if (!generated && !blockName) continue;
 
+    let measure = "Area";
+    if (BOQ_SYNC.MAP_COL_MEASURE) {
+      measure = String(grid[r][BOQ_SYNC.MAP_COL_MEASURE - 1] || "").trim() || "Area";
+    }
+
     out.push({
       targeted,
       generated,
       blockName,
-      measure: "Area",
+      measure,
     });
-  }
-
-  for (const m of out.slice(0, 10)) {
-    const keys = getCandidateQtyKeys_(m).filter(Boolean);
-    report.debug.sampleMappingQtyKeys.push(
-      `${m.blockName || "(blank)"} | ${m.generated || "(blank)"} | ${m.targeted || "(blank)"}  =>  [${keys.join(" , ")}]`
-    );
   }
 
   return out;
@@ -718,10 +798,21 @@ function readMappings_(mapSh, report) {
 
 function getCandidateQtyKeys_(m) {
   const keys = [];
-  if (m.targeted) keys.push(normKey_advanced_(m.targeted));
-  if (m.blockName) keys.push(normKey_advanced_(m.blockName));
-  if (m.generated) keys.push(normKey_advanced_(m.generated));
 
+  // ✅ 1. HIGHEST PRIORITY → Generated Block (Column E)
+  if (m.generated) {
+    keys.push(normKey_advanced_(m.generated));
+  }
+
+  // ✅ 2. Block Name (fallback)
+  if (m.blockName) {
+    keys.push(normKey_advanced_(m.blockName));
+  }
+
+  // ❌ DO NOT USE TARGETED FOR QTY MATCHING (causes mismatch)
+  // if (m.targeted) keys.push(normKey_advanced_(m.targeted));
+
+  // remove duplicates
   const out = [];
   const seen = new Set();
   for (const k of keys) {
@@ -730,6 +821,7 @@ function getCandidateQtyKeys_(m) {
     seen.add(k);
     out.push(k);
   }
+
   return out;
 }
 
@@ -780,30 +872,36 @@ function buildQtyIndex_(exportSS, report) {
     rec.byZone.set(zone, (rec.byZone.get(zone) || 0) + qty);
   }
 
+  // ✅ carry forward last non-blank Product / BOQ name
+  let currentProduct = "";
+  let currentBoqName = "";
+
   for (let r = 1; r < dr.length; r++) {
-    const product = idxProduct !== -1 ? String(dr[r][idxProduct] || "").trim() : "";
-    const boqName = idxBoq !== -1 ? String(dr[r][idxBoq] || "").trim() : "";
+    const rowProduct = idxProduct !== -1 ? String(dr[r][idxProduct] || "").trim() : "";
+    const rowBoqName = idxBoq !== -1 ? String(dr[r][idxBoq] || "").trim() : "";
+
+    if (rowProduct) currentProduct = rowProduct;
+    if (rowBoqName) currentBoqName = rowBoqName;
 
     const zone = String(dr[r][idxZone] || "").trim() || "misc";
     const qty = toNumber_(dr[r][idxQty]);
     if (!Number.isFinite(qty)) continue;
 
-    if (product) addToIndex(product, zone, qty);
-    if (boqName) addToIndex(boqName, zone, qty);
+    if (currentProduct) addToIndex(currentProduct, zone, qty);
+    if (currentBoqName) addToIndex(currentBoqName, zone, qty);
   }
 
   report.debug.qtyUniqueBoqKeys = index.size;
 
   let i = 0;
-  for (const [k] of index.entries()) {
-    report.debug.sampleQtyBoqKeys.push(k);
+  for (const [k, rec] of index.entries()) {
+    report.debug.sampleQtyBoqKeys.push(`${k} => [${rec.order.join(" | ")}]`);
     i++;
     if (i >= 14) break;
   }
 
   return index;
 }
-
 function findHeaderIndexContains_(headerRow, patterns) {
   const pats = patterns.map(p => normKey_advanced_(p));
   for (let i = 0; i < headerRow.length; i++) {
@@ -817,9 +915,22 @@ function findHeaderIndexContains_(headerRow, patterns) {
 /* =========================================================
    Measurement from LAYER
 ========================================================= */
+function computeMeasurementFromSource_(exportSS, mappingObj) {
+  const measureType = normKey_advanced_(mappingObj.measure || "area");
+
+  // 1) try vis_export_sheet_like first
+  const visBreakdown = computeMeasurementFromVisExport_(exportSS, mappingObj, measureType);
+  if (visBreakdown && visBreakdown.order && visBreakdown.order.length) {
+    return visBreakdown;
+  }
+
+  // 2) fallback to LAYER
+  return computeMeasurementFromLayer_(exportSS, mappingObj.generated, measureType);
+}
+
 function computeMeasurementFromLayer_(exportSS, layerName, measure) {
   const sh = exportSS.getSheetByName(BOQ_SYNC.EXPORT_MEASURE_TAB);
-  if (!sh) throw new Error(`Export MEAS tab not found: ${BOQ_SYNC.EXPORT_MEASURE_TAB}`);
+  if (!sh) return { order: [], byZone: new Map() };
 
   const values = sh.getDataRange().getValues();
   if (values.length < 2) return { order: [], byZone: new Map() };
@@ -832,8 +943,9 @@ function computeMeasurementFromLayer_(exportSS, layerName, measure) {
   const idxPerim = header.indexOf(BOQ_SYNC.LAYER_HDR_PERIM.toLowerCase());
   const idxLen = header.indexOf(BOQ_SYNC.LAYER_HDR_LENGTH.toLowerCase());
 
-  if (idxLayer === -1) throw new Error(`LAYER tab missing header: ${BOQ_SYNC.LAYER_HDR_LAYER}`);
-  if (idxZone === -1) throw new Error(`LAYER tab missing header: ${BOQ_SYNC.LAYER_HDR_ZONE}`);
+  if (idxLayer === -1 || idxZone === -1) {
+    return { order: [], byZone: new Map() };
+  }
 
   const m = normKey_advanced_(measure);
   let idxMeasure = idxArea;
@@ -842,6 +954,7 @@ function computeMeasurementFromLayer_(exportSS, layerName, measure) {
   if (m === "perimeter") idxMeasure = idxPerim;
   else if (m === "length") idxMeasure = idxLen;
   else if (m === "count") isCount = true;
+  else idxMeasure = idxArea;
 
   const targetKey = normKey_advanced_(layerName);
 
@@ -865,13 +978,87 @@ function computeMeasurementFromLayer_(exportSS, layerName, measure) {
       order.push(zone);
     }
 
-    let add = 0;
-    if (isCount) add = 1;
-    else {
-      const v = toNumber_(values[r][idxMeasure]);
-      if (!Number.isFinite(v)) continue;
-      add = v;
+    let add = NaN;
+
+    if (isCount) {
+      add = 1;
+    } else if (idxMeasure !== -1) {
+      add = toNumber_(values[r][idxMeasure]);
     }
+
+    if (!Number.isFinite(add)) continue;
+
+    byZone.set(zone, (byZone.get(zone) || 0) + add);
+  }
+
+  return { order, byZone };
+}
+
+function computeMeasurementFromVisExport_(exportSS, mappingObj, measureType) {
+  const sh = exportSS.getSheetByName(BOQ_SYNC.EXPORT_QTY_TAB);
+  if (!sh) return { order: [], byZone: new Map() };
+
+  const values = sh.getDataRange().getValues();
+  if (values.length < 2) return { order: [], byZone: new Map() };
+
+  const header = values[0].map(v => String(v || "").trim().toLowerCase());
+
+  const idxProduct = findHeaderIndexContains_(header, [BOQ_SYNC.VIS_HDR_PRODUCT]);
+  const idxBoq = findHeaderIndexContains_(header, [BOQ_SYNC.VIS_HDR_BOQ]);
+  const idxZone = findHeaderIndexContains_(header, [BOQ_SYNC.VIS_HDR_ZONE]);
+  const idxQty = findHeaderIndexContains_(header, [BOQ_SYNC.VIS_HDR_QTY]);
+  const idxLength = findHeaderIndexContains_(header, [BOQ_SYNC.VIS_HDR_LENGTH]);
+
+  // optional columns for future-proofing
+  const idxArea = findHeaderIndexContains_(header, ["area (ft2)", "area"]);
+  const idxPerim = findHeaderIndexContains_(header, ["perimeter"]);
+
+  if (idxZone === -1) return { order: [], byZone: new Map() };
+
+  const candidateKeys = getCandidateQtyKeys_(mappingObj);
+
+  const order = [];
+  const seen = new Set();
+  const byZone = new Map();
+
+  let currentProduct = "";
+  let currentBoqName = "";
+
+  for (let r = 1; r < values.length; r++) {
+    const rowProduct = idxProduct !== -1 ? String(values[r][idxProduct] || "").trim() : "";
+    const rowBoqName = idxBoq !== -1 ? String(values[r][idxBoq] || "").trim() : "";
+
+    if (rowProduct) currentProduct = rowProduct;
+    if (rowBoqName) currentBoqName = rowBoqName;
+
+    const currentKeys = [
+      normKey_advanced_(currentProduct),
+      normKey_advanced_(currentBoqName)
+    ].filter(Boolean);
+
+    const isMatch = candidateKeys.some(k => currentKeys.includes(k));
+    if (!isMatch) continue;
+
+    const zone = String(values[r][idxZone] || "").trim() || "misc";
+
+    if (!seen.has(zone)) {
+      seen.add(zone);
+      order.push(zone);
+    }
+
+    let add = NaN;
+
+    if (measureType === "count") {
+      if (idxQty !== -1) add = toNumber_(values[r][idxQty]);
+    } else if (measureType === "length") {
+      if (idxLength !== -1) add = toNumber_(values[r][idxLength]);
+    } else if (measureType === "area") {
+      if (idxArea !== -1) add = toNumber_(values[r][idxArea]);
+    } else if (measureType === "perimeter") {
+      if (idxPerim !== -1) add = toNumber_(values[r][idxPerim]);
+    }
+
+    if (!Number.isFinite(add)) continue;
 
     byZone.set(zone, (byZone.get(zone) || 0) + add);
   }
@@ -882,82 +1069,117 @@ function computeMeasurementFromLayer_(exportSS, layerName, measure) {
 /* =========================================================
    HIDE rows logic
 ========================================================= */
-function hideZeroRowsInTab_(sh, matchCol, measurementCol, qtyCol) {
-  const lastRow = sh.getLastRow();
-  if (lastRow < 2) return { hidden: 0, unhidden: 0 };
+// function hideZeroRowsInTab_(sh, matchCol, measurementCol, qtyCol, locationCol, isLocationSplitOnly) {
+//   const lastRow = sh.getLastRow();
+//   if (lastRow < 2) return { hidden: 0, unhidden: 0 };
 
-  const qtyVals = sh.getRange(1, qtyCol, lastRow, 1).getValues();
-  const measVals = measurementCol ? sh.getRange(1, measurementCol, lastRow, 1).getValues() : null;
+//   const qtyVals = sh.getRange(1, qtyCol, lastRow, 1).getValues();
+//   const measVals = measurementCol ? sh.getRange(1, measurementCol, lastRow, 1).getValues() : null;
+//   const srVals = sh.getRange(1, 1, lastRow, 1).getDisplayValues();
 
-  // NEW: read column A (Sr. No. column)
-  const srVals = sh.getRange(1, 1, lastRow, 1).getDisplayValues();
+//   let hidden = 0;
+//   let unhidden = 0;
 
-  let hidden = 0;
-  let unhidden = 0;
+//   for (let r = 2; r <= lastRow; r++) {
+//     const scope = String(sh.getRange(r, matchCol).getDisplayValue() || "").trim();
+//     if (!scope) continue;
 
-  for (let r = 2; r <= lastRow; r++) {
-    const scope = String(sh.getRange(r, matchCol).getDisplayValue() || "").trim();
-    if (!scope) continue;
+//     const cell = sh.getRange(r, matchCol);
+//     if (cell.isPartOfMerge()) {
+//       const mrs = cell.getMergedRanges();
+//       if (mrs && mrs.length) {
+//         const mergedRange = mrs[0];
+//         const isTopLeft = mergedRange.getRow() === r && mergedRange.getColumn() === matchCol;
+//         if (!isTopLeft) {
+//           continue;
+//         }
+//       }
+//     }
 
-    // NEW: if column A contains alphabet-only or alphabet+number, never hide
-    const srText = String((srVals[r - 1] && srVals[r - 1][0]) || "").trim();
-    if (isAlphaSerialRow_(srText)) {
-      if (sh.isRowHiddenByUser(r)) {
-        sh.showRows(r);
-        unhidden++;
-      }
-      continue;
-    }
+//     const srText = String((srVals[r - 1] && srVals[r - 1][0]) || "").trim();
+//     if (isAlphaSerialRow_(srText)) {
+//       if (sh.isRowHiddenByUser(r)) {
+//         sh.showRows(r);
+//         unhidden++;
+//       }
+//       continue;
+//     }
 
-    if (isProtectedTotalRow_(scope)) {
-      if (sh.isRowHiddenByUser(r)) {
-        sh.showRows(r);
-        unhidden++;
-      }
-      continue;
-    }
+//     if (isProtectedTotalRow_(scope)) {
+//       if (sh.isRowHiddenByUser(r)) {
+//         sh.showRows(r);
+//         unhidden++;
+//       }
+//       continue;
+//     }
 
-    const qty = toNumber_(qtyVals[r - 1][0]);
-    const qtyZero = !Number.isFinite(qty) || qty === 0;
+//     if (isLocationSplitOnly && locationCol) {
+//       const location = String(sh.getRange(r, locationCol).getDisplayValue() || "").trim();
 
-    if (!measurementCol) {
-      if (qtyZero) {
-        if (!sh.isRowHiddenByUser(r)) {
-          sh.hideRows(r);
-          hidden++;
-        }
-      } else {
-        if (sh.isRowHiddenByUser(r)) {
-          sh.showRows(r);
-          unhidden++;
-        }
-      }
-      continue;
-    }
+//       const scopeCell = sh.getRange(r, matchCol);
+//       const isMergedParent = scopeCell.isPartOfMerge() &&
+//         scopeCell.getMergedRanges()[0].getRow() === r;
 
-    const meas = toNumber_(measVals[r - 1][0]);
-    const measZero = !Number.isFinite(meas) || meas === 0;
+//       if (isMergedParent) {
+//         if (sh.isRowHiddenByUser(r)) {
+//           sh.showRows(r);
+//           unhidden++;
+//         }
+//       } else if (!location) {
+//         if (!sh.isRowHiddenByUser(r)) {
+//           sh.hideRows(r);
+//           hidden++;
+//         }
+//       } else {
+//         if (sh.isRowHiddenByUser(r)) {
+//           sh.showRows(r);
+//           unhidden++;
+//         }
+//       }
+//       continue;
+//     }
 
-    if (qtyZero && measZero) {
-      if (!sh.isRowHiddenByUser(r)) {
-        sh.hideRows(r);
-        hidden++;
-      }
-    } else {
-      if (sh.isRowHiddenByUser(r)) {
-        sh.showRows(r);
-        unhidden++;
-      }
-    }
-  }
+//     const qty = toNumber_(qtyVals[r - 1][0]);
+//     const qtyZero = !Number.isFinite(qty) || qty === 0;
 
-  return { hidden, unhidden };
-}
+//     if (!measurementCol) {
+//       if (qtyZero) {
+//         if (!sh.isRowHiddenByUser(r)) {
+//           sh.hideRows(r);
+//           hidden++;
+//         }
+//       } else {
+//         if (sh.isRowHiddenByUser(r)) {
+//           sh.showRows(r);
+//           unhidden++;
+//         }
+//       }
+//       continue;
+//     }
 
-function isProtectedTotalRow_(scopeText) {
-  const s = normKey_advanced_(scopeText);
-  return s === "total" || s === "sheet total";
-}
+//     const meas = toNumber_(measVals[r - 1][0]);
+//     const measZero = !Number.isFinite(meas) || meas === 0;
+
+//     if (qtyZero && measZero) {
+//       if (!sh.isRowHiddenByUser(r)) {
+//         sh.hideRows(r);
+//         hidden++;
+//       }
+//     } else {
+//       if (sh.isRowHiddenByUser(r)) {
+//         sh.showRows(r);
+//         unhidden++;
+//       }
+//     }
+//   }
+
+//   return { hidden, unhidden };
+// }
+
+// function isProtectedTotalRow_(scopeText) {
+//   const s = normKey_advanced_(scopeText);
+//   return s === "total" || s === "sheet total";
+// }
 
 /* =========================================================
    Master helpers
@@ -999,7 +1221,12 @@ function findHeaderColContains_(sheet, candidates, scanRows) {
    Formatting helpers
 ========================================================= */
 function mergeAndCenterSafe_(sh, startRow, col, numRows) {
-  if (numRows <= 1) return;
+  Logger.log(`[MERGE] Attempting: Row=${startRow}, Col=${col}, NumRows=${numRows}`);
+
+  if (numRows <= 1) {
+    Logger.log(`[MERGE] SKIPPED: NumRows=${numRows} (need > 1)`);
+    return;
+  }
 
   const rng = sh.getRange(startRow, col, numRows, 1);
 
@@ -1009,8 +1236,61 @@ function mergeAndCenterSafe_(sh, startRow, col, numRows) {
   }
 
   rng.merge();
+  Logger.log(`[MERGE] SUCCESS: Merged Row ${startRow} to ${startRow + numRows - 1}`);
+
   rng.setHorizontalAlignment("center");
   rng.setVerticalAlignment("middle");
+}
+
+function mergeNonDetailColumnsForBlock_(sh, startRow, numRows, lastCol, exemptColsObj) {
+  if (numRows <= 1) return;
+
+  const exemptCols = new Set(
+    Object.values(exemptColsObj).filter(c => Number.isInteger(c) && c > 0)
+  );
+
+  for (let col = 1; col <= lastCol; col++) {
+    if (exemptCols.has(col)) continue;
+
+    const rng = sh.getRange(startRow, col, numRows, 1);
+
+    if (rng.isPartOfMerge()) {
+      const mergedRanges = rng.getMergedRanges();
+      for (const mr of mergedRanges) {
+        mr.breakApart();
+      }
+    }
+
+    rng.merge();
+    rng.setVerticalAlignment("middle");
+    rng.setHorizontalAlignment("center");
+  }
+}
+
+function hasFormulaInCell_(sh, row, col) {
+  if (!col || row < 1) return false;
+  const formula = sh.getRange(row, col).getFormula();
+  return !!(formula && String(formula).trim());
+}
+
+function writeTotalQtyIfNoFormula_(sh, startRow, numRows, totalQtyCol, qtyCol, numberFormat) {
+  if (!totalQtyCol || !qtyCol || startRow < 1 || numRows < 1) return;
+
+  const totalCell = sh.getRange(startRow, totalQtyCol);
+
+  // do not overwrite formula
+  if (hasFormulaInCell_(sh, startRow, totalQtyCol)) return;
+
+  const qtyValues = sh.getRange(startRow, qtyCol, numRows, 1).getValues();
+
+  let total = 0;
+  for (let i = 0; i < qtyValues.length; i++) {
+    const n = toNumber_(qtyValues[i][0]);
+    if (Number.isFinite(n)) total += n;
+  }
+
+  totalCell.setValue(total);
+  totalCell.setNumberFormat(numberFormat || "0.############");
 }
 
 /* =========================================================
@@ -1093,6 +1373,9 @@ function getLatestMasterCopyId_() {
 /* =========================================================
    Utils
 ========================================================= */
+function isCountMeasure_(measure) {
+  return normKey_advanced_(measure) === "count";
+}
 function pushZone_(arr, zone) {
   const z = (zone && String(zone).trim()) ? String(zone).trim() : "misc";
   if (!arr.includes(z)) arr.push(z);
@@ -1102,13 +1385,6 @@ function isAlphaSerialRow_(value) {
   const s = String(value || "").trim();
   if (!s) return false;
 
-  // Matches:
-  // A
-  // B
-  // A1
-  // A-1
-  // A.1
-  // AB12
   return /^[A-Za-z]+(?:[.\-]?\d+)?$/.test(s);
 }
 

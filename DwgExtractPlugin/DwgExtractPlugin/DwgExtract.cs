@@ -2,16 +2,19 @@
 // References: acmgd.dll, acdbmgd.dll, accoremgd.dll  (Copy Local = False)
 //
 // ✅ Outputs:
-//   1) vis_export_visibility.json        (same)
-//   2) vis_export_all.json               (same)
-//   3) vis_export_zone_rows.csv          (same, optional)
-//   4) vis_export_sheet_like.json        (same)  <-- blocks (INSERTs)
-//   5) vis_export_planner_dims.json      (UPDATED)  <-- planner dims + perimeter
-//   6) vis_export_layers_sheet_like.json (NEW)   <-- NON-BLOCK entities aggregated by (zone, layer)
+//   1) vis_export_visibility.json          (aggregated by visibility)
+//   2) vis_export_all.json                 (aggregated by block name)
+//   3) vis_export_zone_rows.csv            (zone distribution)
+//   4) vis_export_sheet_like.json          (blocks by zone)
+//   5) vis_export_planner_dims.json        (planner dims + perimeter)
+//   6) vis_export_layers_sheet_like.json   (non-block entities by zone+layer)
+//   7) vis_export_per_instance.json        ✨ NEW - one row per block instance!
 //
 // ✅ FIXED: GetBlockSizeFeet now uses block reference extents
 //    This calculates accurate length/width for EACH placed instance
 //    Accounts for rotation, scale, and position of each block
+//
+// ✅ NEW: Per-instance export outputs 1 row per placed block, not aggregated
 
 using System;
 using System.Collections.Generic;
@@ -62,13 +65,18 @@ namespace DwgExtractPlugin
             string outJsonSheetLike = Path.Combine(outDir, "vis_export_sheet_like.json");
             string outCsvZoneRows = Path.Combine(outDir, "vis_export_zone_rows.csv");
             string outJsonPlannerDims = Path.Combine(outDir, "vis_export_planner_dims.json");
-
             string outJsonLayersSheetLike = Path.Combine(outDir, "vis_export_layers_sheet_like.json");
+
+            // ✅ NEW: Per-instance JSON output
+            string outJsonPerInstance = Path.Combine(outDir, "vis_export_per_instance.json");
 
             double unitToFt = GetScaleToFeet(db);
 
             var visGrouped = new Dictionary<string, VisAgg>(StringComparer.OrdinalIgnoreCase);
             var allGrouped = new Dictionary<string, AllAgg>(StringComparer.OrdinalIgnoreCase);
+
+            // ✅ NEW: Per-instance collection
+            var perInstanceList = new List<PerInstanceItem>();
 
             int totalInserts = 0;
             int dynamicProcessed = 0;
@@ -118,6 +126,23 @@ namespace DwgExtractPlugin
                     string zoneName = NormalizeZone(ResolveZoneForBlockRef(br, zones));
 
                     Dictionary<string, string> dynConfig = CollectDynamicConfig(br);
+
+                    // ✅ NEW: Add to per-instance list
+                    perInstanceList.Add(new PerInstanceItem
+                    {
+                        BlockName = baseName,
+                        Quantity = 1,
+                        LengthFt = lenFt,
+                        WidthFt = widFt,
+                        Zone = zoneName,
+                        CategoryLike = Safe(br.Layer),
+                        ConfigString = BuildConfigString(dynConfig),
+                        Distance1Ft = d1Ft,
+                        Distance2Ft = d2Ft,
+                        Distance3Ft = d3Ft,
+                        Distance4Ft = d4Ft,
+                        DynamicConfig = dynConfig
+                    });
 
                     {
                         AllAgg a;
@@ -267,6 +292,10 @@ namespace DwgExtractPlugin
             string layersJson = BuildLayersSheetLikeJson(dwgFileName, "layers", layerRows);
             File.WriteAllText(outJsonLayersSheetLike, layersJson, Encoding.UTF8);
 
+            // ✅ NEW: Write per-instance JSON
+            string jsonPerInstance = BuildPerInstanceJson(dwgFileName, perInstanceList);
+            File.WriteAllText(outJsonPerInstance, jsonPerInstance, Encoding.UTF8);
+
             doc.Editor.WriteMessage("\n✅ VISJSONNET wrote:\n");
             doc.Editor.WriteMessage("  - " + outJsonVisibility + "\n");
             doc.Editor.WriteMessage("  - " + outJsonAll + "\n");
@@ -274,6 +303,7 @@ namespace DwgExtractPlugin
             doc.Editor.WriteMessage("  - " + outJsonSheetLike + "   (sheet-like JSON with Config)\n");
             doc.Editor.WriteMessage("  - " + outJsonPlannerDims + "   (planner layer dims + perimeter)\n");
             doc.Editor.WriteMessage("  - " + outJsonLayersSheetLike + "   (NON-BLOCK layer sheet → tab 'layers')\n");
+            doc.Editor.WriteMessage("  - " + outJsonPerInstance + "   ✨ (PER-INSTANCE data - 1 row per block!)\n");
         }
 
         private static string NormalizeZone(string zone)
@@ -337,6 +367,23 @@ namespace DwgExtractPlugin
 
             public readonly Dictionary<string, List<string>> ConfigBuckets = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
             public string ConfigString = "";
+        }
+
+        // ✅ NEW: Per-instance data class
+        private class PerInstanceItem
+        {
+            public string BlockName { get; set; }
+            public int Quantity { get; set; }
+            public double LengthFt { get; set; }
+            public double WidthFt { get; set; }
+            public string Zone { get; set; }
+            public string CategoryLike { get; set; }
+            public string ConfigString { get; set; }
+            public double Distance1Ft { get; set; }
+            public double Distance2Ft { get; set; }
+            public double Distance3Ft { get; set; }
+            public double Distance4Ft { get; set; }
+            public Dictionary<string, string> DynamicConfig { get; set; }
         }
 
         private class ZoneRow
@@ -424,6 +471,79 @@ namespace DwgExtractPlugin
             public double WidthFt;
             public double PerimeterFt;
             public double AreaFt2;
+        }
+
+        // ✅ NEW: Build per-instance JSON
+        private static string BuildPerInstanceJson(string dwg, List<PerInstanceItem> items)
+        {
+            if (items == null) items = new List<PerInstanceItem>();
+
+            var sb = new StringBuilder();
+            sb.Append("{\n");
+            sb.Append("  \"dwg\": ").Append(JsonStr(dwg)).Append(",\n");
+            sb.Append("  \"totalInstances\": ").Append(items.Count.ToString(CultureInfo.InvariantCulture)).Append(",\n");
+            sb.Append("  \"items\": [\n");
+
+            for (int i = 0; i < items.Count; i++)
+            {
+                var item = items[i];
+                sb.Append("    {\n");
+                sb.Append("      \"blockName\": ").Append(JsonStr(item.BlockName ?? "")).Append(",\n");
+                sb.Append("      \"quantity\": ").Append(item.Quantity.ToString(CultureInfo.InvariantCulture)).Append(",\n");
+                sb.Append("      \"length_ft\": ").Append(Num(item.LengthFt)).Append(",\n");
+                sb.Append("      \"width_ft\": ").Append(Num(item.WidthFt)).Append(",\n");
+                sb.Append("      \"zone\": ").Append(JsonStr(item.Zone ?? "")).Append(",\n");
+                sb.Append("      \"categoryLike\": ").Append(JsonStr(item.CategoryLike ?? "")).Append(",\n");
+                sb.Append("      \"distance1_ft\": ").Append(Num(item.Distance1Ft)).Append(",\n");
+                sb.Append("      \"distance2_ft\": ").Append(Num(item.Distance2Ft)).Append(",\n");
+                sb.Append("      \"distance3_ft\": ").Append(Num(item.Distance3Ft)).Append(",\n");
+                sb.Append("      \"distance4_ft\": ").Append(Num(item.Distance4Ft)).Append(",\n");
+
+                if (!string.IsNullOrWhiteSpace(item.ConfigString))
+                    sb.Append("      \"config\": ").Append(JsonStr(item.ConfigString)).Append(",\n");
+
+                if (item.DynamicConfig != null && item.DynamicConfig.Count > 0)
+                {
+                    sb.Append("      \"dynamicConfig\": {\n");
+                    var cfgItems = item.DynamicConfig.ToList();
+                    for (int j = 0; j < cfgItems.Count; j++)
+                    {
+                        var kv = cfgItems[j];
+                        sb.Append("        ").Append(JsonStr(kv.Key)).Append(": ").Append(JsonStr(kv.Value ?? ""));
+                        if (j < cfgItems.Count - 1) sb.Append(",");
+                        sb.Append("\n");
+                    }
+                    sb.Append("      }\n");
+                }
+                else
+                {
+                    sb.Append("      \"dynamicConfig\": {}\n");
+                }
+
+                sb.Append("    }");
+                if (i < items.Count - 1) sb.Append(",");
+                sb.Append("\n");
+            }
+
+            sb.Append("  ]\n");
+            sb.Append("}\n");
+            return sb.ToString();
+        }
+
+        // ✅ NEW: Build config string from dynamic properties
+        private static string BuildConfigString(Dictionary<string, string> dynConfig)
+        {
+            if (dynConfig == null || dynConfig.Count == 0)
+                return "";
+
+            var parts = new List<string>();
+            foreach (var kv in dynConfig)
+            {
+                if (!string.IsNullOrWhiteSpace(kv.Key) && !string.IsNullOrWhiteSpace(kv.Value))
+                    parts.Add(kv.Key.Trim() + "=" + kv.Value.Trim());
+            }
+
+            return string.Join(", ", parts);
         }
 
         private static string BuildVisibilityJson(string dwg, int total, int dynProcessed, int kept, List<VisAgg> items)

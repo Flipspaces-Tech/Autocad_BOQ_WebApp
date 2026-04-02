@@ -8,18 +8,21 @@ Supported JSON schemas:
    B) { "items": [ {...}, ... ] }
 2) Planner dims export:
    C) { "dwg": "...", "plannerLayer": "...", "overall": {...}, "zones": [ {...}, ... ] }
-3) Layer export variants (common):
-   D) { "layers": [ {...}, ... ] }
-   E) [ {...}, {...} ]  (top-level list)
-   F) { "headers": [...], "rows": [ [...], ... ] }
-   G) { "LayerA": 12, "LayerB": 5, ... } (dict summary) -> flattened to rows
+3) Per-instance export (NEW):
+   D) { "dwg": "...", "totalInstances": N, "items": [ {...}, ... ] }
+4) Layer export variants (common):
+   E) { "layers": [ {...}, ... ] }
+   F) [ {...}, {...} ]  (top-level list)
+   G) { "headers": [...], "rows": [ [...], ... ] }
+   H) { "LayerA": 12, "LayerB": 5, ... } (dict summary) -> flattened to rows
 
 Mappings:
-- vis_export_visibility.json     -> export_visibility tab
-- vis_export_all.json            -> export_all tab
-- vis_export_sheet_like.json     -> vis_export_sheet_like tab
-- vis_export_planner_dims.json   -> PLANNER tab
+- vis_export_visibility.json        -> export_visibility tab
+- vis_export_all.json               -> export_all tab
+- vis_export_sheet_like.json        -> vis_export_sheet_like tab
+- vis_export_planner_dims.json      -> PLANNER tab
 - vis_export_layers_sheet_like.json -> LAYER tab
+- vis_export_per_instance.json      -> PerInstanceData tab (✅ NEW)
 """
 
 import json
@@ -34,6 +37,7 @@ FILES = {
     "vis_export_sheet_like.json": "vis_export_sheet_like",
     "vis_export_planner_dims.json": "PLANNER",
     "vis_export_layers_sheet_like.json": "LAYER",
+    "vis_export_per_instance.json": "PerInstanceData",  # ✅ NEW: Per-instance block data
 }
 
 GS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwTTg9SzLo70ICTbpr2a5zNw84CG6kylNulVONenq4BADQIuCq7GuJqtDq7H_QfV0pe/exec"
@@ -61,7 +65,7 @@ def _discover_headers_from_list_of_dicts(records):
 def flatten_items_json(data):
     """
     Returns (headers, rows) for upload.
-    Handles a wide set of export schemas, including layer exports.
+    Handles a wide set of export schemas, including layer exports and per-instance data.
     """
 
     if isinstance(data, list):
@@ -94,9 +98,35 @@ def flatten_items_json(data):
         records = [x for x in items if isinstance(x, dict)]
         if not records:
             return [], []
-        headers = _discover_headers_from_list_of_dicts(records)
-        rows = [[r.get(h, "") for h in headers] for r in records]
-        return headers, rows
+        
+        # ✅ NEW: Filter to ONLY essential columns for PerInstanceData
+        # Maps JSON field names → output column names
+        column_map = {
+            "blockName": "blockName",
+            "quantity": "quantity",
+            "length_ft": "length_ft",
+            "width_ft": "width_ft",
+            "zone": "zone",
+            "categoryLike": "categoryLike",
+            "config": "config",
+        }
+        
+        # Check if this looks like per-instance data (has blockName field)
+        has_blockname = any("blockname" in (str(k) or "").lower() for record in records for k in record.keys())
+        
+        if has_blockname:
+            # Filter to only the columns we want
+            output_headers = list(column_map.keys())
+            filtered_rows = []
+            for r in records:
+                filtered_row = [r.get(h, "") for h in output_headers]
+                filtered_rows.append(filtered_row)
+            return output_headers, filtered_rows
+        else:
+            # Fallback: use all headers
+            headers = _discover_headers_from_list_of_dicts(records)
+            rows = [[r.get(h, "") for h in headers] for r in records]
+            return headers, rows
 
     layers = data.get("layers", [])
     if isinstance(layers, list) and layers:
